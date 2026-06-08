@@ -1,6 +1,5 @@
-from storage.config import StorageConfig
 from storage.sqlite import SQLiteStorage
-from tests.helpers import insert_key_version, insert_logical_key
+from tests.sotrage.helpers import insert_key_version, insert_logical_key
 
 
 def test_storage_init_does_not_run_migrations(storage_config):
