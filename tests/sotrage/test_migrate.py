@@ -3,8 +3,8 @@ import sqlite3
 import pytest
 
 from storage.migrate import MigrationRunner
-from tests.conftest import KEYS_DB_EXPECTED_MIGRATIONS
-from tests.helpers import insert_key_version, insert_logical_key
+from tests.sotrage.conftest import KEYS_DB_EXPECTED_MIGRATIONS
+from tests.sotrage.helpers import insert_key_version, insert_logical_key
 
 
 def _ledger_features(runner: MigrationRunner) -> list[str]:
