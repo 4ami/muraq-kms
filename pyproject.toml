@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=61.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "muraq-kms"
+dynamic = ["version"]
+description = "Appliance-grade Key Management System"
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [
+    { name = "Khalid Hawkash", email = "dev.y2mi@gmail.com" }
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Topic :: Security :: Cryptography",
+]
+dependencies = [
+    "argon2-cffi>=25.1.0",
+    "cryptography>=48.0.0",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8.4.1",
+]
+
+[tool.setuptools.dynamic]
+version = { attr = "muraq_kms.__version__" }
+
+#[project.scripts]
+#muraq-kms = "muraq_kms.cli.main:start_interactive_shell"
+
+[tool.semantic_release]
+version_toml = ["pyproject.toml:tool.setuptools.dynamic.version.attr"]
+branch = "master"
+upload_to_release = true

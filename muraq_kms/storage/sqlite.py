@@ -1,7 +1,7 @@
 import sqlite3
 from contextlib import contextmanager
 from typing import Any, Iterator, Literal
-from storage.config import StorageConfig
+from muraq_kms.storage.config import StorageConfig
 
 
 class SQLiteStorage:

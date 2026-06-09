@@ -3,7 +3,7 @@ import time
 
 import pytest
 
-from storage.async_wrapper import AsyncSQLiteStorage
+from muraq_kms.storage.async_wrapper import AsyncSQLiteStorage
 from tests.sotrage.helpers import insert_key_version, insert_logical_key
 
 

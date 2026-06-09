@@ -1,8 +1,8 @@
 import pytest
 
-from storage.config import StorageConfig
-from storage.migrate import MigrationRunner
-from storage.sqlite import SQLiteStorage
+from muraq_kms.storage.config import StorageConfig
+from muraq_kms.storage.migrate import MigrationRunner
+from muraq_kms.storage.sqlite import SQLiteStorage
 
 KEYS_DB_EXPECTED_MIGRATIONS = [
     "001_keys",

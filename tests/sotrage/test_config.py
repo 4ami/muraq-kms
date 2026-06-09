@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from storage.config import StorageConfig
+from muraq_kms.storage.config import StorageConfig
 
 
 def test_db_path_under_base_dir(storage_config):

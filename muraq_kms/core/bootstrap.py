@@ -1,12 +1,12 @@
 import shutil
-from storage.config import StorageConfig
-from storage.migrate import MigrationRunner
-from storage.sqlite import SQLiteStorage
+from muraq_kms.storage.config import StorageConfig
+from muraq_kms.storage.migrate import MigrationRunner
+from muraq_kms.storage.sqlite import SQLiteStorage
 from typing import Optional
 
 from uuid import uuid4
-from crypto.kdf import derive_pp_key
-from crypto.primitives import generate_secure_bytes, encrypt_envelope, split_root_secret
+from muraq_kms.crypto.kdf import derive_pp_key
+from muraq_kms.crypto.primitives import generate_secure_bytes, encrypt_envelope, split_root_secret
 
 from pathlib import Path
 
@@ -15,8 +15,9 @@ import hashlib
 
 import json
 from datetime import datetime, timezone
+from muraq_kms import __version__
 
-from core.exceptions import AlreadyInitializedError
+from muraq_kms.core.exceptions import AlreadyInitializedError
 
 def enforce_idempotency(config: StorageConfig, force:bool) -> tuple[Path, Path]:
     manifest_path = config.base_dir / "manifest.json"
@@ -64,7 +65,7 @@ def build_manifest(
     deployment_salt:bytes,
 ) -> dict[str, ...]:
     manifest_data = {
-        "version": "v1.0.0",
+        "version": f"v{__version__}" if not __version__.startswith('v') else __version__,
         "deployment_id": deployment_id,
         "kdf_salt_hex": kdf_salt.hex(),
         "deployment_salt_hex":deployment_salt.hex(),
