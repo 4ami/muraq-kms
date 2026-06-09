@@ -1,5 +1,5 @@
 import pytest
-from crypto.primitives import split_root_secret
+from muraq_kms.crypto.primitives import split_root_secret
 
 def test_secret_splitting_isolation(valid_drs, valid_deployment_salt):
     rmk, ask = split_root_secret(valid_drs, valid_deployment_salt)

@@ -1,6 +1,6 @@
 import pytest
 import os
-from crypto.kdf import derive_pp_key
+from muraq_kms.crypto.kdf import derive_pp_key
 
 def test_kdf_derivation_is_deterministic(valid_passphrase, valid_salt):
     key_a = derive_pp_key(valid_passphrase, valid_salt)

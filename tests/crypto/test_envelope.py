@@ -1,6 +1,5 @@
 import pytest
-import os
-from crypto.primitives import encrypt_envelope, decrypt_envelope, generate_secure_bytes
+from muraq_kms.crypto.primitives import encrypt_envelope, decrypt_envelope, generate_secure_bytes
 from cryptography.exceptions import InvalidTag
 
 def test_envelope_lifecycle_convergence(valid_key_wrapping_key):

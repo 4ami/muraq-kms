@@ -2,7 +2,7 @@ import sqlite3
 
 import pytest
 
-from storage.migrate import MigrationRunner
+from muraq_kms.storage.migrate import MigrationRunner
 from tests.sotrage.conftest import KEYS_DB_EXPECTED_MIGRATIONS
 from tests.sotrage.helpers import insert_key_version, insert_logical_key
 

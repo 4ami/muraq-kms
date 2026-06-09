@@ -1,6 +1,6 @@
 import asyncio
 from typing import Any, Literal
-from storage.sqlite import SQLiteStorage
+from muraq_kms.storage.sqlite import SQLiteStorage
 
 
 class AsyncSQLiteStorage:

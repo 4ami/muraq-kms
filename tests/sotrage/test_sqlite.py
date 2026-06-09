@@ -1,4 +1,4 @@
-from storage.sqlite import SQLiteStorage
+from muraq_kms.storage.sqlite import SQLiteStorage
 from tests.sotrage.helpers import insert_key_version, insert_logical_key
 
 

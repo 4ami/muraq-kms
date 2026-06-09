@@ -1,6 +1,6 @@
-from storage.config import StorageConfig
-from storage.migrate import MigrationRunner
-from storage.sqlite import SQLiteStorage
+from muraq_kms.storage.config import StorageConfig
+from muraq_kms.storage.migrate import MigrationRunner
+from muraq_kms.storage.sqlite import SQLiteStorage
 
 __all__ = ["StorageConfig", "MigrationRunner", "SQLiteStorage"]
 

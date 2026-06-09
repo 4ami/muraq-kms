@@ -1,7 +1,7 @@
 import pytest
 import os
 
-from storage.config import StorageConfig
+from muraq_kms.storage.config import StorageConfig
 
 @pytest.fixture
 def valid_passphrase() -> str:

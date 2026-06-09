@@ -1,4 +1,4 @@
-from storage.sqlite import SQLiteStorage
+from muraq_kms.storage.sqlite import SQLiteStorage
 
 
 def insert_logical_key(
