@@ -17,7 +17,26 @@ import json
 from datetime import datetime, timezone
 from muraq_kms import __version__
 
-from muraq_kms.core.exceptions import AlreadyInitializedError
+from muraq_kms.core.exceptions import AlreadyInitializedError, UnsafeDirectoryError
+
+def chech_safe_path(path:Path) -> bool:
+    abs_path = path.resolve()
+
+    if abs_path == abs_path.anchor:
+        return False
+
+    unsafe_roots = [
+        Path("/").resolve(),
+        Path("/home").resolve(),
+        Path("/Users").resolve(),
+        Path.home().resolve(),
+        Path.cwd().resolve(),
+    ]
+
+    if abs_path in unsafe_roots:
+        return False
+    
+    return True
 
 def enforce_idempotency(config: StorageConfig, force:bool) -> tuple[Path, Path]:
     manifest_path = config.base_dir / "manifest.json"
@@ -28,11 +47,11 @@ def enforce_idempotency(config: StorageConfig, force:bool) -> tuple[Path, Path]:
             raise AlreadyInitializedError()
     
     if config.base_dir.exists():
+        if not chech_safe_path(path=config.base_dir):
+            raise UnsafeDirectoryError(path=config.base_dir)
         shutil.rmtree(config.base_dir)
 
     return manifest_path, drs_path
-
-
 
 def bootstrap_storage(config: Optional[StorageConfig] = None) -> None:
     """
@@ -44,7 +63,8 @@ def bootstrap_storage(config: Optional[StorageConfig] = None) -> None:
     for db_file, domain in [
         (cfg.db_path, "keys_db"),
         (cfg.audit_db_path, "audit_db"),
-        (cfg.recovery_db_path, "recovery_db")
+        (cfg.recovery_db_path, "recovery_db"),
+        (cfg.state_db_path, "state_db")
     ]:
         runner = MigrationRunner(db_path=db_file, domain=domain)
         try:
@@ -131,3 +151,10 @@ def bootstrap(config:StorageConfig, passphrase:str, force:bool = False) -> None:
     build_drs(drs_path, wrapper_drs)
 
     genesis_audit(config, manifest_data, ask)
+
+    ask = b"\x00" * len(ask)
+    _ = b"\x00" * len(_)
+    raw_drs = b"\x00" * len(raw_drs)
+
+    ask, _, raw_drs = None, None, None
+    deployment_id = None

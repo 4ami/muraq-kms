@@ -10,14 +10,15 @@ class SQLiteStorage:
         self._conns: dict[str, sqlite3.Connection | None] = {
             "keys": None,
             "audit": None,
-            "recovery": None
+            "recovery": None,
+            "state": None
         }
 
     @property
     def config(self) -> StorageConfig:
         return self._config
     
-    def connection(self, domain: Literal["keys", "audit", "recovery"] = "keys") -> sqlite3.Connection:
+    def connection(self, domain: Literal["keys", "audit", "recovery", "state"] = "keys") -> sqlite3.Connection:
         """
         Returns or creates a connection handle for a specific domain.
         Defaults to 'keys' to keep existing test cases and queries compatible.
@@ -27,6 +28,8 @@ class SQLiteStorage:
                 path = self._config.db_path
             elif domain == "audit":
                 path = self._config.audit_db_path
+            elif domain == "state":
+                path = self._config.state_db_path
             else:
                 path = self._config.recovery_db_path
 
@@ -42,7 +45,7 @@ class SQLiteStorage:
         conn.execute("PRAGMA journal_mode = WAL")
 
     @contextmanager
-    def transaction(self, domain: Literal["keys", "audit", "recovery"] = "keys") -> Iterator[sqlite3.Connection]:
+    def transaction(self, domain: Literal["keys", "audit", "recovery", "state"] = "keys") -> Iterator[sqlite3.Connection]:
         with self.connection(domain) as conn:
             yield conn
 

@@ -2,6 +2,14 @@ from muraq_kms.storage.sqlite import SQLiteStorage
 from tests.sotrage.helpers import insert_key_version, insert_logical_key
 
 
+def test_sqlite_storage_domain_mapping_isolation(migrated_storage):
+    keys_conn = migrated_storage.connection(domain="keys")
+    state_conn = migrated_storage.connection(domain="state")
+    
+    assert migrated_storage._config.db_path.exists()
+    assert migrated_storage._config.state_db_path.exists()
+    assert keys_conn != state_conn
+
 def test_storage_init_does_not_run_migrations(storage_config):
     storage = SQLiteStorage(storage_config)
     try:

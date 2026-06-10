@@ -13,7 +13,7 @@ def test_from_env_uses_mkms_data_dir(monkeypatch, tmp_path):
 
     config = StorageConfig.from_env()
 
-    assert config.base_dir == data_dir
+    assert config.base_dir == (data_dir / ".muraq-kms")
 
 
 def test_from_env_default_path(monkeypatch):
@@ -21,7 +21,7 @@ def test_from_env_default_path(monkeypatch):
 
     config = StorageConfig.from_env()
 
-    assert config.base_dir == Path("/var/lib/muraq/kms")
+    assert config.base_dir == (Path.home() / ".muraq-kms").resolve()
 
 
 def test_ensure_layout_creates_directories(storage_config):

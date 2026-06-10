@@ -12,17 +12,17 @@ class AsyncSQLiteStorage:
         return self._storage
 
     async def fetchone(
-        self, sql: str, params: tuple[Any, ...] = (), domain: Literal["keys", "audit", "recovery"] = "keys"
+        self, sql: str, params: tuple[Any, ...] = (), domain: Literal["keys", "audit", "recovery", "state"] = "keys"
     ) -> tuple[Any, ...] | None:
         return await asyncio.to_thread(self._storage.fetchone, sql, params, domain)
 
     async def fetchall(
-        self, sql: str, params: tuple[Any, ...] = (), domain: Literal["keys", "audit", "recovery"] = "keys"
+        self, sql: str, params: tuple[Any, ...] = (), domain: Literal["keys", "audit", "recovery", "state"] = "keys"
     ) -> list[tuple[Any, ...]]:
         return await asyncio.to_thread(self._storage.fetchall, sql, params, domain)
 
     async def execute(
-        self, sql: str, params: tuple[Any, ...] = (), domain: Literal["keys", "audit", "recovery"] = "keys"
+        self, sql: str, params: tuple[Any, ...] = (), domain: Literal["keys", "audit", "recovery", "state"] = "keys"
     ) -> None:
         def _run() -> None:
             with self._storage.transaction(domain=domain) as conn:

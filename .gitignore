@@ -7,3 +7,4 @@
 .eggs/
 build/
 dist/
+uv.lock

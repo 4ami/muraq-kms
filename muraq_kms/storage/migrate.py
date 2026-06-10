@@ -6,7 +6,7 @@ from typing import Literal
 
 
 class MigrationRunner:
-    def __init__(self, db_path: Path, domain: Literal["keys_db", "recovery_db", "audit_db"]) -> None:
+    def __init__(self, db_path: Path, domain: Literal["keys_db", "recovery_db", "audit_db", "state_db"]) -> None:
         self._db_path = db_path
         self._domain = domain
         self._conn: sqlite3.Connection | None = None
