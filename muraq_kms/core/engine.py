@@ -90,9 +90,9 @@ class CoreEngine:
         if self._raw_drs is not None:
             self._raw_drs = b"\x00" * len(self._raw_drs)
         if self._rmk is not None:
-            self._raw_drs = b"\x00" * len(self._rmk)
+            self._rmk = b"\x00" * len(self._rmk)
         if self._ask is not None:
-            self._raw_drs = b"\x00" * len(self._ask)
+            self._ask = b"\x00" * len(self._ask)
         
         self._raw_drs = None
         self._rmk = None

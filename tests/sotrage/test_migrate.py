@@ -116,3 +116,19 @@ def test_downgrade_one_on_empty_db_returns_none(storage_config):
         assert runner.downgrade_one() is None
     finally:
         runner.close()
+
+def test_migration_runner_seeds_throttling_baseline(storage_config):
+    runner = MigrationRunner(storage_config.state_db_path, domain="state_db")
+    try:
+        count = runner.upgrade()
+        assert count > 0
+        
+        conn = runner._connection()
+        row = conn.execute(
+            "SELECT failed_attempts, tamper_signature FROM throttling_state WHERE id=1"
+        ).fetchone()
+        assert row is not None
+        assert row[0] == 0
+        assert row[1] == "INITIALIZED"
+    finally:
+        runner.close()

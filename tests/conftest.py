@@ -26,3 +26,7 @@ def valid_key_wrapping_key() -> bytes:
 @pytest.fixture
 def storage_config(tmp_path) -> StorageConfig:
     return StorageConfig(tmp_path / "kms_test_vault")
+
+@pytest.fixture(autouse=True)
+def clean_env_isolation(monkeypatch):
+    monkeypatch.delenv("MKMS_DATA_DIR", raising=False)
