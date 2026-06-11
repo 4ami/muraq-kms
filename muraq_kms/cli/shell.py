@@ -87,6 +87,10 @@ class MKMSShell(cmd.Cmd):
         Automatically repair broken schemas, missing directories, or corrupted tracking structures.
         Usage: fix
         """
+        if not DoctorEngine.is_system_initialized(self.config):
+            print("\n[!] Refusing Repair: System has not been initialized yet.")
+            print("[*] Please run the 'init' command first to deploy your KMS instance safely.\n")
+            return
         RepairService.execute_repairs(self.config, self.engine.deployment_id)
         
 

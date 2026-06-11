@@ -189,3 +189,87 @@ def test_diagnose_statedb_tamper_flags_critical_unfixable(tmp_path):
         state_issue = next(i for i in report.issues if i.asset == "state.db")
         assert state_issue.is_critical is True
         assert state_issue.can_fix is False
+
+def test_is_system_initialized_pristine_slate(tmp_path):
+    """
+    State 1: Brand new deployment environment.
+    The folder exists (e.g., pre-provisioned by Docker/Kubernetes) but is empty
+    or contains only standard OS metadata noise.
+    """
+    config = StorageConfig(base_dir=tmp_path)
+    config.ensure_layout()
+    
+    assert DoctorEngine.is_system_initialized(config) is False
+
+    (config.base_dir / ".DS_Store").touch()
+    (config.base_dir / "lost+found").mkdir(exist_ok=True)
+    assert DoctorEngine.is_system_initialized(config) is False
+
+def test_is_system_initialized_active_production(tmp_path):
+    """
+    State 2: Fully initialized, operating KMS layout.
+    All primary cryptographic pillars exist on disk.
+    """
+    config = StorageConfig(base_dir=tmp_path)
+    config.ensure_layout()
+    
+    with open(config.base_dir / "manifest.json", "w", encoding="utf-8") as m:
+        json.dump({"deployment_id": "prod-uuid-1122"}, m)
+    config.base_dir.joinpath("signature.enc").touch()
+    config.db_path.touch()
+    config.state_db_path.touch()
+    
+    assert DoctorEngine.is_system_initialized(config) is True
+
+def test_is_system_initialized_catches_manifest_deletion_exploit(tmp_path):
+    """
+    State 3: Attack Simulation.
+    An adversary deletes manifest.json to trick the system into an uninitialized state.
+    The consensus engine must catch this partial layout anomaly.
+    """
+    config = StorageConfig(base_dir=tmp_path)
+    config.ensure_layout()
+    
+    with open(config.base_dir / "manifest.json", "w", encoding="utf-8") as m:
+        json.dump({"deployment_id": "prod-uuid-1122"}, m)
+    config.base_dir.joinpath("signature.enc").touch()
+    config.db_path.touch()
+    config.state_db_path.touch()
+    
+    config.base_dir.joinpath("manifest.json").unlink()
+    
+    assert DoctorEngine.is_system_initialized(config) is True
+
+def test_diagnose_suppresses_all_issues_on_fresh_uninitialized_boot(tmp_path):
+    """
+    Verifies that running diagnostics on a fresh environment returns a clean
+    bill of health (is_healthy=True, issues=[]) rather than shouting about missing files.
+    """
+    config = StorageConfig(base_dir=tmp_path)
+    config.ensure_layout()
+    
+    report = DoctorEngine.diagnose(config)
+    
+    assert report.is_healthy is True
+    assert report.has_critical is False
+    assert len(report.issues) == 0
+
+def test_diagnose_flags_critical_when_initialized_system_is_partially_wiped(tmp_path):
+    """
+    Proves that if an active deployment experiences a missing manifest file, 
+    the engine flags it as a critical, unfixable structural error.
+    """
+    config = StorageConfig(base_dir=tmp_path)
+    config.ensure_layout()
+    
+    config.base_dir.joinpath("signature.enc").touch()
+    config.db_path.touch()
+    config.state_db_path.touch()
+    
+    report = DoctorEngine.diagnose(config)
+    
+    assert report.is_healthy is False
+    assert report.has_critical is True
+    
+    manifest_issue = next(i for i in report.issues if i.asset == "manifest.json")
+    assert manifest_issue.is_critical is True
