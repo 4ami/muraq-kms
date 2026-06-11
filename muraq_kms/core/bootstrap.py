@@ -7,6 +7,7 @@ from typing import Optional
 from uuid import uuid4
 from muraq_kms.crypto.kdf import derive_pp_key
 from muraq_kms.crypto.primitives import generate_secure_bytes, encrypt_envelope, split_root_secret
+from muraq_kms.crypto.system import calculate_manifest_signature
 
 from pathlib import Path
 
@@ -77,6 +78,9 @@ def build_drs(drs_path:Path, wrapped_drs:bytes) -> None:
     with open(drs_path, "wb") as d:
         d.write(wrapped_drs)
 
+def build_signature(wrapped_sig:bytes,sig_path: Path) -> None:
+    with open(sig_path, 'wb') as s:
+        s.write(wrapped_sig)
 
 def build_manifest(
     manifest_path:Path, 
@@ -150,11 +154,22 @@ def bootstrap(config:StorageConfig, passphrase:str, force:bool = False) -> None:
 
     build_drs(drs_path, wrapper_drs)
 
+    signature = calculate_manifest_signature(manifest_data, raw_drs)
+    signature_file = config.base_dir / "signature.enc"
+    payload = {
+        "trusted_deployment_id": deployment_id,
+        "signature": signature.hex()
+    }
+    serialized = json.dumps(payload, separators=(',', ':'))
+    wrapped_signature = encrypt_envelope(serialized.encode('utf-8'), kwk)
+    build_signature(wrapped_signature, signature_file)
+
     genesis_audit(config, manifest_data, ask)
 
     ask = b"\x00" * len(ask)
     _ = b"\x00" * len(_)
     raw_drs = b"\x00" * len(raw_drs)
+    signature = b"\x00" * len(signature)
 
-    ask, _, raw_drs = None, None, None
+    ask, _, raw_drs, signature = None, None, None, None
     deployment_id = None

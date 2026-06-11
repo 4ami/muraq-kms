@@ -1,9 +1,10 @@
 from enum import Enum, auto
-from typing import Optional
+from typing import Any, Optional, Dict
 
 from muraq_kms.storage.config import StorageConfig
 from muraq_kms.crypto.kdf import derive_pp_key
 from muraq_kms.crypto.primitives import decrypt_envelope, split_root_secret
+from muraq_kms.crypto.system import verify_manifest_signature
 
 from muraq_kms.core.exceptions import EngineError
 
@@ -63,7 +64,6 @@ class CoreEngine:
             try:
                 kdf_salt = bytes.fromhex(manifest_data["kdf_salt_hex"])
                 deployment_salt = bytes.fromhex(manifest_data["deployment_salt_hex"])
-                deployment_id = manifest_data["deployment_id"]
             except (KeyError, ValueError) as e:
                 raise EngineError(f"Manifest corruption detected: {str(e)}")
         
@@ -77,13 +77,26 @@ class CoreEngine:
         except Exception:
             raise EngineError("Unseal failed: Invalid passphrase or corrupted payload.")
         
-        rmk, ask = split_root_secret(raw_drs, deployment_salt)
+        try:
+            rmk, ask = split_root_secret(raw_drs, deployment_salt)
+            self._raw_drs = raw_drs
+            self._rmk = rmk
+            self._ask = ask
 
-        self._raw_drs = raw_drs
-        self._rmk = rmk
-        self._ask = ask
-        self._deployment_id = deployment_id
-        self._state = EngineState.UNSEALED
+            self.verify_on_unseal(manifest_data, kwk)
+            self._state = EngineState.UNSEALED
+        except Exception:
+            self.seal()
+            raise
+        finally:
+            if 'kwk' in locals() and kwk:
+                kwk = b"\x00" * len(kwk)
+            if 'raw_drs' in locals() and raw_drs:
+                raw_drs = b"\x00" * len(raw_drs)
+            if rmk in locals() and rmk:
+                rmk = b"\x00" * len(rmk)
+            if 'ask' in locals() and ask:
+                ask = b"\x00" * len(ask)
     
 
     def seal(self) -> None:
@@ -99,3 +112,24 @@ class CoreEngine:
         self._ask = None
         self._deployment_id = None
         self._state = EngineState.SEALED
+    
+    def verify_on_unseal(self, manifest:Dict[str, Any], kwk:bytes) -> None:
+        with open(self.config.base_dir / "signature.enc", 'rb') as s:
+            wrapped_signature = s.read()
+        
+        decrypted_signature = decrypt_envelope(wrapped_signature, kwk)
+        payload = json.loads(decrypted_signature.decode('utf-8'))
+
+        if not verify_manifest_signature(manifest, bytes.fromhex(payload['signature']), self._raw_drs):
+            raise EngineError("CRITICAL: manifest.json has been tampered with or modified!")
+
+        if payload["trusted_deployment_id"] != manifest["deployment_id"]:
+            print("⚠️ [!] Identity spoofing detected! Initiating manifest auto-healing sequence...")
+            id = payload['trusted_deployment_id']
+            manifest['deployment_id'] = id
+            with open(self.config.base_dir / "manifest.json", "w", encoding="utf-8") as m:
+                json.dump(manifest, m, indent=4)
+            print("✨ [+] manifest.json has been recovered and synced with the platform identity anchor.")
+            raise EngineError("CRITICAL: Manifest deployment identity spoofing detected!")
+
+        self._deployment_id = payload['trusted_deployment_id']
