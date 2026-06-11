@@ -24,8 +24,10 @@ def unseal_kms(engine:CoreEngine) -> None:
     
     manifest_path = engine.config.base_dir / "manifest.json"
     drs_path = engine.config.base_dir / "drs.enc"
-    if not manifest_path.exists() or not drs_path.exists():
+    sig_path = engine.config.base_dir / "signature.enc"
+    if not manifest_path.exists() or not drs_path.exists() or not sig_path.exists():
         print("[-] Unseal Blocked: This appliance space has not been initialized yet.")
+        print("[*] Hint: If signature.enc was deleted, the system deployment context is permanently unrecoverable.")
         print("[*] Hint: Run the 'init' command to create a brand new deployment first.")
         return
 
@@ -52,6 +54,10 @@ def unseal_kms(engine:CoreEngine) -> None:
     print(f"[*] Security clearance required. You have {status.remaining_attempts} attempt(s) remaining.")
 
     while True:
+        dynamic_status = throttler.check_status()
+        if dynamic_status.is_locked:
+            print("[-] Locked out...")
+            return
         passphrase = getpass("Enter master passphrase: ").strip()
         
         if passphrase.lower() in ("abort", "exit", "quit"):
@@ -71,6 +77,12 @@ def unseal_kms(engine:CoreEngine) -> None:
             print(f"[+] Active Deployment Footprint ID: {engine.deployment_id}")
             return
         except EngineError as ee:
+            error_message = str(ee)
+            if "CRITICAL" in error_message:
+                print(f"\n🚨 {error_message}")
+                throttler.enforce_tamper_lockout()
+                return
+
             post_failure_status = throttler.record_failure()
             if post_failure_status.is_locked:
                 print(f"\n[-] Critical: Maximum execution attempts reached.")

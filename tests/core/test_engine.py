@@ -2,6 +2,9 @@ import pytest
 
 from pathlib import Path
 import tempfile
+from unittest.mock import patch, MagicMock
+
+import json
 
 from muraq_kms.storage.config import StorageConfig
 from muraq_kms.core.bootstrap import bootstrap
@@ -68,10 +71,67 @@ def test_engine_seal_wipes_transient_memory_structures(isolated_env):
         engine.get_ask()
 
 def test_engine_unseal_fails_without_bootstrapped_artifacts():
-    """Verify unseal breaks safely if run on an empty system directory structure."""
     with tempfile.TemporaryDirectory() as empty_dir:
         config = StorageConfig(base_dir=Path(empty_dir))
         engine = CoreEngine(config=config)
         
         with pytest.raises(EngineError, match="Missing manifest or DRS artifacts"):
             engine.unseal("any_passphrase")
+
+@patch("muraq_kms.core.engine.derive_pp_key")
+@patch("muraq_kms.core.engine.decrypt_envelope")
+@patch("muraq_kms.core.engine.split_root_secret")
+@patch("muraq_kms.core.engine.verify_manifest_signature")
+def test_unseal_state_protection_and_zeroization_on_failure(
+    mock_verify_sig, mock_split, mock_decrypt, mock_derive, isolated_env
+):
+    config, _ = isolated_env
+    with open(config.base_dir / "manifest.json", "w") as m:
+        json.dump({"deployment_id": "true-id", "kdf_salt_hex": "00", "deployment_salt_hex": "00"}, m)
+    (config.base_dir / "drs.enc").write_bytes(b"wrapped-drs")
+    (config.base_dir / "signature.enc").write_bytes(b"wrapped-sig")
+
+    mock_derive.return_value = b"kwk-key-material-32-bytes-long"
+    mock_decrypt.side_effect = [b"raw_drs_bytes", b'{"trusted_deployment_id": "true-id", "signature": "aabb"}']
+    mock_split.return_value = (b"rmk_bytes", b"ask_bytes")
+    
+    mock_verify_sig.return_value = False
+
+    engine = CoreEngine(config=config)
+    
+    with pytest.raises(EngineError, match="CRITICAL: manifest.json has been tampered with"):
+        engine.unseal("master_passphrase")
+
+    assert engine.state == EngineState.SEALED
+    assert engine._raw_drs is None
+    assert engine._rmk is None
+    assert engine._ask is None
+
+@patch("muraq_kms.core.engine.derive_pp_key")
+@patch("muraq_kms.core.engine.decrypt_envelope")
+@patch("muraq_kms.core.engine.split_root_secret")
+@patch("muraq_kms.core.engine.verify_manifest_signature")
+def test_unseal_auto_heals_manifest_spoofing(
+    mock_verify_sig, mock_split, mock_decrypt, mock_derive, isolated_env
+):
+    config, _ = isolated_env
+    manifest_path = config.base_dir / "manifest.json"
+    
+    with open(manifest_path, "w") as m:
+        json.dump({"deployment_id": "spoofed-attacker-id", "kdf_salt_hex": "00", "deployment_salt_hex": "00"}, m)
+    (config.base_dir / "drs.enc").write_bytes(b"wrapped-drs")
+    (config.base_dir / "signature.enc").write_bytes(b"wrapped-sig")
+
+    mock_derive.return_value = b"kwk"
+    mock_decrypt.side_effect = [b"raw_drs", b'{"trusted_deployment_id": "legit-prod-id", "signature": "aabb"}']
+    mock_split.return_value = (b"rmk", b"ask")
+    mock_verify_sig.return_value = True
+
+    engine = CoreEngine(config=config)
+
+    with pytest.raises(EngineError, match="identity spoofing detected"):
+        engine.unseal("master_passphrase")
+
+    with open(manifest_path, "r") as m:
+        healed_data = json.load(m)
+    assert healed_data["deployment_id"] == "legit-prod-id"

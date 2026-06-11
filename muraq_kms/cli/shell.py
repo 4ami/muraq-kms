@@ -1,9 +1,11 @@
 import cmd
 from typing import Optional
 
+from muraq_kms.cli.services import RepairService
 from muraq_kms.storage.config import StorageConfig
 
 from muraq_kms.core.engine import CoreEngine, EngineState
+from muraq_kms.core.doctor import DoctorEngine, DiagnosticReport
 
 from muraq_kms.cli.services.init_service import init_kms
 from muraq_kms.cli.services.unseal_service import unseal_kms
@@ -20,6 +22,25 @@ class MKMSShell(cmd.Cmd):
         self.config = config or StorageConfig.from_env()
         self.engine = CoreEngine(self.config)
         self._update_prompt()
+
+    def preloop(self) -> None:
+        report:DiagnosticReport = DoctorEngine.diagnose(self.config)
+        if not report.is_healthy:
+            print("\n" + "="*60)
+            print("                MURAQ-KMS HEALTH DIAGNOSTICS                ")
+            print("="*60)
+
+            for issue in report.issues:
+                prefix = "[CRITICAL]" if issue.is_critical else "[WARNING]"
+                print(f"{prefix} Asset: {issue.asset} -> {issue.message}")
+            print("="*60 + "\n")
+
+            if report.has_critical:
+                print("🚨 FATAL UNUSABILITY ERROR: Critical infrastructure components are missing or corrupted.")
+                print("System operations are locked down to protect active keys. Access Denied.\n")
+                return True
+            else:
+                print("⚠️ NOTICE: Issues found are repairable. Running the 'fix' command can restore standard schemas.\n")
 
     
     def _update_prompt(self) -> None:
@@ -40,6 +61,34 @@ class MKMSShell(cmd.Cmd):
             print("[*] Hint: Run the 'seal' command first if you intend to purge data.")
             return
         init_kms(self.config, arg)
+
+    def do_doctor(self, arg:str) -> None:
+        """
+        Run complete physical health preflight checks across system files and storage databases.
+        Usage: doctor
+        """
+        report:DiagnosticReport = DoctorEngine.diagnose(self.config)
+        if report.is_healthy:
+            print("[*] All systems operational. Components verified completely green.")
+        else:
+            print(f"[-] System anomalies detected: {len(report.issues)} item(s) need attention.")
+            for issue in report.issues:
+                if issue.is_critical:
+                    print("[🚨] Critical infrastructure component is missing or corrupted.")
+                    print(f"- COMPONENT: {issue.asset}")
+                    print(f"- MESSAGE: {issue.message}")
+                else:
+                    print("[⚠️] Issues found are repairable. Running the 'fix' command can restore standard schemas.")
+                    print(f"- COMPONENT: {issue.asset}")
+                    print(f"- MESSAGE: {issue.message}")
+    
+    def do_fix(self, arg:str) -> None:
+        """
+        Automatically repair broken schemas, missing directories, or corrupted tracking structures.
+        Usage: fix
+        """
+        RepairService.execute_repairs(self.config, self.engine.deployment_id)
+        
 
     def do_unseal(self, arg:str) -> None:
         """
