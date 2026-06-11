@@ -1,4 +1,6 @@
+import os
 import json
+
 from pathlib import Path
 import sqlite3
 from typing import List, Optional
@@ -11,7 +13,43 @@ from muraq_kms.core.throttling import ThrottlingEngine
 class DoctorEngine:
 
     @staticmethod
+    def is_system_initialized(config:StorageConfig) -> bool:
+        """
+        Determines if the KMS is initialized based on consensus and folder hygiene.
+        
+        Returns:
+            True  -> System has data (operational or corrupted/tampered).
+            False -> System is a totally blank slate (safe to run 'init').
+        """
+        anchors = [
+            config.base_dir / "manifest.json",
+            config.base_dir / "signature.enc",
+            config.db_path,
+            config.state_db_path
+        ]
+
+        existing_anchors = sum(1 for path in anchors if path.exists())
+        if existing_anchors == len(anchors):
+            return True
+        if existing_anchors > 1:
+            True
+
+        if config.base_dir.exists():
+            allowed = {"state", "audit", "recovery", "backups"}
+            ignored = {".DS_Store", "lost+found", ".snapshots"}
+                
+            for e in os.scandir(config.base_dir):
+                if e.name in ignored: continue
+                if e.is_dir() and e.name in allowed: continue
+                return True
+        
+        return False
+
+    @staticmethod
     def diagnose(config:StorageConfig) -> DiagnosticReport:
+        if not DoctorEngine.is_system_initialized(config):
+            return DiagnosticReport(issues=[])
+            
         report = DiagnosticReport()
 
         manifest_issues:List[Issue] = DoctorEngine._diagnose_manifest(config.base_dir)
