@@ -46,7 +46,10 @@ def test_unseal_intercepts_tamper_lockout_before_password_prompt(mock_getpass, t
     test_cli_shell.onecmd("unseal")
     
     captured = capsys.readouterr().out
-    assert "SECURITY WARNING" in captured
+    assert "SECURITY ALTERCATION" in captured
+    assert "DETECTED" in captured
+    assert "Engine state anomalies" in captured
+    assert "validation failure" in captured
     assert "Access temporarily throttled for 30 minutes" in captured
     assert mock_getpass.called is False, "Security failure: Prompted for a password during an active tamper event."
 
@@ -158,7 +161,9 @@ def test_cli_fix_command_aborts_on_uninitialized_system(test_cli_shell, capsys):
     
     captured = capsys.readouterr().out
     assert "System has not been initialized yet" in captured
-    assert "run the 'init' command" in captured
+    assert "Please run the" in captured
+    assert "init" in captured
+    assert "command first to deploy your KMS instance safely" in captured
 
 @patch("muraq_kms.cli.services.unseal_service.getpass")
 @patch("muraq_kms.cli.services.unseal_service.ThrottlingEngine")

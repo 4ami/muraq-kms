@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import patch, MagicMock
 from muraq_kms.cli.services.unseal_service import unseal_kms
-from muraq_kms.core.engine import CoreEngine, EngineError
+from muraq_kms.core.engine import EngineError
 
 
 
@@ -50,4 +50,5 @@ def test_unseal_intercepts_critical_exception_and_slams_door(
 
     mock_throttler.enforce_tamper_lockout.assert_called_once()
     captured = capsys.readouterr().out
-    assert "🚨 CRITICAL:" in captured
+    assert "CRITICAL" in captured
+    assert "Manifest identity forgery detected" in captured
