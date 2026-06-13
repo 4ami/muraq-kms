@@ -1,15 +1,30 @@
 from unittest.mock import patch, MagicMock
 
-from muraq_kms.core.engine import EngineState, EngineError
+from muraq_kms.core.exceptions.engine_error import EngineError
+from muraq_kms.core.engine import EngineState
+
+from muraq_kms.cli.shells.unsealed_shell import MKMSUnsealedShell
 
 import json
 
-def test_shell_prompt_lifecycle_transitions(test_cli_shell):
+def test_root_shell_remains_sealed(test_cli_shell):
+    """The root administrative shell must always maintain its sealed boundary."""
     assert "SEALED" in test_cli_shell.prompt
     
     test_cli_shell.engine._state = EngineState.UNSEALED
     test_cli_shell.postcmd(stop=False, line="")
-    assert "UNSEALED" in test_cli_shell.prompt
+    assert "SEALED" in test_cli_shell.prompt
+
+
+def test_unsealed_sub_shell_prompt_lifecycle(test_cli_shell):
+    """The routed unsealed sub-shell must evaluate and render the active unsealed prompt layout."""
+    test_cli_shell.engine._state = EngineState.UNSEALED
+    test_cli_shell.engine._deployment_id = "mkms_did_900d6125-5472-454e-b6de-0e895d54157f"
+    
+    unsealed_shell = MKMSUnsealedShell(test_cli_shell.config, test_cli_shell.engine)
+    
+    assert "UNSEALED" in unsealed_shell.prompt
+    assert "900d6125" in unsealed_shell.prompt
 
 @patch("muraq_kms.cli.services.init_service.getpass")
 @patch("muraq_kms.cli.services.init_service.bootstrap")

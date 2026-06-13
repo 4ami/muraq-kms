@@ -1,5 +1,7 @@
+import sys
 from enum import Enum
 from typing import Optional
+from getpass import getpass
 
 class StringEnum(str, Enum):
     def __str__(self) -> str:

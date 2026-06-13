@@ -32,14 +32,13 @@ class Spinner:
         self._thread.start()
         sys.stdout = self._buffer
         return self
-    
+            
     def __exit__(self, exc_type, exc_val, exc_tb):
         sys.stdout = self._stdout
 
         self._running = False
         if self._thread:
             self._thread.join()
-        
         sys.stdout.write("\r\033[K")
         sys.stdout.flush()
 
@@ -54,10 +53,10 @@ class Spinner:
                     f.line(line)
         else:
             print(f"{UI.STATUS.SUCCESS} Complete: {self.message}")
-            if captured:
-                print(captured)
-        
-        return True
+            
+        if captured:
+            print(captured)
+        return exc_type is None
 
 
 class SpinnerGroup:
@@ -73,6 +72,7 @@ class SpinnerGroup:
         sys.stdout.write(f"{self.color}│{UI.ANSIESCAPE.RESET} ")
         sys.stdout.flush()
         
+        result = None
         with Spinner(message):
             result = task_callable(*args, **kwargs)
             time.sleep(0.4)

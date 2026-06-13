@@ -60,7 +60,7 @@ def init_kms(config:StorageConfig, arg:str):
     print(f"\n{UI.STATUS.INFO} Secure credential creation sequence initiated.")
     print(f"{UI.STATUS.HINT} Type {UI.COLORS.RED}abort{UI.ANSIESCAPE.RESET} at any time to cancel initialization.\n")
     while(True):
-        passphrase = getpass("Enter master passphrase: ").strip()
+        passphrase = getpass("\nEnter master passphrase: ").strip()
         
         if passphrase in ("abort", "exit", "quit"):
             print(f"{UI.STATUS.INFO} Initialization aborted by user.")
