@@ -1,0 +1,229 @@
+from datetime import datetime, timezone
+from typing import Optional, Generator
+from contextlib import contextmanager, asynccontextmanager
+
+from muraq_kms.storage.pool import StoragePool
+
+from muraq_kms.crypto.primitives import encrypt_envelope, decrypt_envelope
+from muraq_kms.crypto.registry import MuraqKMSAlgorithms
+
+from muraq_kms.keys.key_errors import KeyLifecycleError
+from muraq_kms.keys.repository import KeyRepository
+from muraq_kms.keys.models import KeyVersionModel, KeyVersionState
+
+from muraq_kms.audit.manager import AuditManager
+
+from muraq_kms.policies.models import KeyAccessPolicy
+from muraq_kms.policies.evaluator import PolicyEvaluator
+from muraq_kms.policies.lease import borrow_key_context, EphemeralKeyLease
+from muraq_kms.policies.policy_errors import PolicyDenialError
+
+class KeyManager:
+    def __init__(self, pool:StoragePool, audit_manager:AuditManager, ask:bytes, rmk:bytes, evaluator:Optional[PolicyEvaluator] = None) -> None:
+        self.repo = KeyRepository(pool=pool)
+        self.audit = audit_manager
+        self.ask = ask
+        self.rmk = rmk
+        self.evaluator = evaluator or PolicyEvaluator()
+    
+    async def create_key_async(self, name: str, algorithm: str = "XChaCha20", description: Optional[str] = None, policy: Optional[KeyAccessPolicy] = None) -> KeyVersionModel:
+        """
+        Creates a new logical container if missing and maps its initial v1 active key material.
+        All configurations flow into your strict PolicyManifest engine.
+        """
+        actor = "system:core"
+        p = policy or KeyAccessPolicy()
+        spec = MuraqKMSAlgorithms.get_spec(algorithm)
+        
+        try:
+            logical_key = await self.repo.get_logical_key_by_name_async(name)
+            
+            if logical_key:
+                raise KeyLifecycleError(f"Key Identity Conflict: Logical key '{name}' already exists.")
+            
+            logical_key = await self.repo.create_logical_key_async(
+                name=name, 
+                description=description,
+                exportable=1 if p.export else 0,
+                borrowable=1 if p.borrow else 0,
+                borrow_ttl=p.borrow_ttl_seconds if p.borrow else 0
+            )
+            
+            v_num = 1
+            kid = f"{name}:v{v_num}"
+            
+            raw_material = spec.generator_func()
+            
+            model = KeyVersionModel(
+                kid=kid,
+                logical_key_id=logical_key["_id"],
+                version=v_num,
+                state=KeyVersionState.ACTIVE,
+                algorithm=algorithm,
+                raw_material=encrypt_envelope(raw_material, self.rmk).hex(),
+                created_at=datetime.now(timezone.utc)
+            )
+            model.activated_at = model.created_at
+            
+            await self.repo.save_key_version_async(model)
+            
+            await self.audit.log_event_async(
+                action="kms:key_create", 
+                actor=actor,
+                details={"logical_key": name, "kid": kid, "algorithm": algorithm},
+                status="SUCCESS", 
+                ask=self.ask
+            )
+            return model
+
+        except Exception as e:
+            await self.audit.log_event_async(
+                action="kms:key_create", 
+                actor=actor,
+                details={"logical_key": name, "error": str(e)},
+                status="FAILED", 
+                ask=self.ask
+            )
+            if isinstance(e, KeyLifecycleError):
+                raise
+            raise KeyLifecycleError(f"Failed to create key '{name}': {str(e)}")
+
+    def create_key_sync(self, name: str, algorithm: str = "XChaCha20", description: Optional[str] = None, policy: Optional[KeyAccessPolicy] = None) -> KeyVersionModel:
+        """
+        Creates a new logical container if missing and maps its initial v1 active key material.
+        All configurations flow into your strict PolicyManifest engine.
+        """
+        actor = "system:core"
+        p = policy or KeyAccessPolicy()
+        spec = MuraqKMSAlgorithms.get_spec(algorithm)
+        
+        try:
+            logical_key = self.repo.get_logical_key_by_name_sync(name)
+            
+            if logical_key:
+                raise KeyLifecycleError(f"Key Identity Conflict: Logical key '{name}' already exists.")
+            
+            logical_key = self.repo.create_logical_key_sync(
+                name=name, 
+                description=description,
+                exportable=1 if p.export else 0,
+                borrowable=1 if p.borrow else 0,
+                borrow_ttl=p.borrow_ttl_seconds if p.borrow else 0
+            )
+            
+            v_num = 1
+            kid = f"{name}:v{v_num}"
+            
+            raw_material = spec.generator_func()
+            
+            model = KeyVersionModel(
+                kid=kid,
+                logical_key_id=logical_key["_id"],
+                version=v_num,
+                state=KeyVersionState.ACTIVE,
+                algorithm=algorithm,
+                raw_material=encrypt_envelope(raw_material, self.rmk).hex(),
+                created_at=datetime.now(timezone.utc)
+            )
+            model.activated_at = model.created_at
+            
+            self.repo.save_key_version_sync(model)
+            
+            self.audit.log_event_sync(
+                action="kms:key_create", 
+                actor=actor,
+                details={"logical_key": name, "kid": kid, "algorithm": algorithm},
+                status="SUCCESS", 
+                ask=self.ask
+            )
+            return model
+
+        except Exception as e:
+            self.audit.log_event_sync(
+                action="kms:key_create", 
+                actor=actor,
+                details={"logical_key": name, "error": str(e)},
+                status="FAILED", 
+                ask=self.ask
+            )
+            if isinstance(e, KeyLifecycleError):
+                raise
+            raise KeyLifecycleError(f"Failed to create key '{name}': {str(e)}")
+    
+    @asynccontextmanager
+    async def borrow_key_async(self, name:str, version:Optional[int] = None) -> Generator[EphemeralKeyLease, None, None]:
+        """
+        FR-14 & FR-21 Controlled Ephemeral Borrow access pattern. 
+        Enforces runtime-scoped contexts, zeroization window assertions, and audit logging.
+        """
+        actor = "sdk:application"
+
+        lk = await self.repo.get_logical_key_by_name_async(name=name)
+
+        if not lk or lk['borrowable'] != 1:
+            await self.audit.log_event_async(
+                actor=actor,
+                action="kms:borrow",
+                status="DENIED",
+                details={"logical_key": name},
+                ask=self.ask
+            )
+            raise PolicyDenialError(f"Key reference '{name}' is not flagged as borrowable.")
+        
+        kv = None
+        if version:
+            kv = await self.repo.get_key_version_by_kid_async(kid=f"{name}:v{version}")
+        else:
+            kv = await self.repo.get_active_version_for_logical_key_async(logical_key_id=lk['_id'])
+        if not kv:
+            raise KeyLifecycleError("Requested target physical key layer variant is unreachable.")
+        
+        wrapped_key:bytes = bytes.fromhex(kv['raw_material'])
+        raw_material:bytes = decrypt_envelope(wrapped_key, self.rmk)
+
+        with borrow_key_context(key_id=kv['kid'], raw_bytes=raw_material, ttl_seconds=lk['borrow_ttl_seconds']) as lease:
+            await self.audit.log_event_async(
+                action="kms:borrow", actor=actor, status="SUCCESS",
+                details={"kid": kv['kid'], "ttl_seconds": lk['borrow_ttl_seconds']},
+                ask=self.ask
+            )
+            yield lease
+   
+    @contextmanager
+    def borrow_key_async(self, name:str, version:Optional[int] = None) -> Generator[EphemeralKeyLease, None, None]:
+        """
+        FR-14 & FR-21 Controlled Ephemeral Borrow access pattern. 
+        Enforces runtime-scoped contexts, zeroization window assertions, and audit logging.
+        """
+        actor = "sdk:application"
+
+        lk = self.repo.get_logical_key_by_name_sync(name=name)
+
+        if not lk or lk['borrowable'] != 1:
+            self.audit.log_event_sync(
+                actor=actor,
+                action="kms:borrow",
+                status="DENIED",
+                details={"logical_key": name},
+                ask=self.ask
+            )
+            raise PolicyDenialError(f"Key reference '{name}' is not flagged as borrowable.")
+        
+        kv = None
+        if version:
+            kv = self.repo.get_key_version_by_kid_sync(kid=f"{name}:v{version}")
+        else:
+            kv = self.repo.get_active_version_for_logical_key_sync(logical_key_id=lk['_id'])
+        if not kv:
+            raise KeyLifecycleError("Requested target physical key layer variant is unreachable.")
+        
+        wrapped_key:bytes = bytes.fromhex(kv['raw_material'])
+        raw_material:bytes = decrypt_envelope(wrapped_key, self.rmk)
+
+        with borrow_key_context(key_id=kv['kid'], raw_bytes=raw_material, ttl_seconds=lk['borrow_ttl_seconds']) as lease:
+            self.audit.log_event_sync(
+                action="kms:borrow", actor=actor, status="SUCCESS",
+                details={"kid": kv['kid'], "ttl_seconds": lk['borrow_ttl_seconds']},
+                ask=self.ask
+            )
+            yield lease

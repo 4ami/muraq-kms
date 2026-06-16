@@ -1,8 +1,9 @@
 import pytest
 import time
 from muraq_kms.policies.models import PolicyManifest, KeyAccessPolicy
-from muraq_kms.policies.evaluator import PolicyEvaluator, PolicyDenialError
-from muraq_kms.policies.lease import borrow_key_context, LeaseExpiredError
+from muraq_kms.policies.evaluator import PolicyEvaluator
+from muraq_kms.policies.lease import borrow_key_context
+from muraq_kms.policies.policy_errors import PolicyDenialError, LeaseExpiredError
 
 def test_policy_evaluator_fails_closed_by_default():
     evaluator = PolicyEvaluator()

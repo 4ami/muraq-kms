@@ -1,7 +1,9 @@
 import shutil
+
+from muraq_kms.storage.pool import StoragePool
+
 from muraq_kms.storage.config import StorageConfig
 from muraq_kms.storage.migrate import MigrationRunner
-from muraq_kms.storage.sqlite import SQLiteStorage
 from typing import Optional
 
 from uuid import uuid4
@@ -102,34 +104,27 @@ def build_manifest(
     return manifest_data
 
 def genesis_audit(cfg:StorageConfig, data:dict[str, ...], ask:bytes) -> bool:
-    storage = SQLiteStorage(config=cfg)
+    from muraq_kms.audit.manager import AuditManager
+    manager = AuditManager(StoragePool(cfg))
 
     try:
         timestamp = data["initialized_at"]
         action = "MURAQ-KMS-INIT"
         actor = "SYSTEM"
-        details = json.dumps({"deployment_id": data["deployment_id"]})  # <-- FIXED: json.dumps
+        details = {"deployment_id": data["deployment_id"]}
         status = "SUCCESS"
-        previous_hash = "00000000000000000000000000000000"
 
-        msg = f"{timestamp}|{action}|{actor}|{details}|{status}|{previous_hash}"
-        entry_hash = hmac.new(
-            key=ask,
-            msg=msg.encode("utf-8"),
-            digestmod=hashlib.sha256,
-        ).hexdigest()
-
-        storage.append_audit_entry(
-            timestamp=timestamp,
+        manager.log_event_sync(
+            timestamp=datetime.fromisoformat(timestamp),
             action=action,
             actor=actor,
             details=details,
             status=status,
-            previous_hash=previous_hash,
-            entry_hash=entry_hash
+            ask=ask
         )
-    finally:
-        storage.close()
+        return True
+    except Exception:
+        raise
 
 
 def bootstrap(config:StorageConfig, passphrase:str, force:bool = False) -> None:
@@ -148,7 +143,7 @@ def bootstrap(config:StorageConfig, passphrase:str, force:bool = False) -> None:
 
     wrapper_drs = encrypt_envelope(raw_drs, kwk)
 
-    _, ask = split_root_secret(raw_drs, deployment_salt)
+    rmk, ask = split_root_secret(raw_drs, deployment_salt)
 
     manifest_data = build_manifest(manifest_path, deployment_id, kdf_salt, deployment_salt)
 
@@ -167,9 +162,9 @@ def bootstrap(config:StorageConfig, passphrase:str, force:bool = False) -> None:
     genesis_audit(config, manifest_data, ask)
 
     ask = b"\x00" * len(ask)
-    _ = b"\x00" * len(_)
+    rmk = b"\x00" * len(rmk)
     raw_drs = b"\x00" * len(raw_drs)
     signature = b"\x00" * len(signature)
 
-    ask, _, raw_drs, signature = None, None, None, None
+    ask, rmk, raw_drs, signature = None, None, None, None
     deployment_id = None

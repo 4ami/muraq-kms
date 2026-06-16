@@ -1,7 +1,7 @@
-from typing import Dict, Any, Optional
+from typing import Optional
 
 from muraq_kms.policies.models import PolicyManifest, KeyAccessPolicy
-from muraq_kms.policies.policy_error import PolicyDenialError
+from muraq_kms.policies.policy_errors import PolicyDenialError
 
 class PolicyEvaluator:
     def __init__(self, manifest: Optional[PolicyManifest] = None) -> None:

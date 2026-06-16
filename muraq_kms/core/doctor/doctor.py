@@ -32,7 +32,7 @@ class DoctorEngine:
         if existing_anchors == len(anchors):
             return True
         if existing_anchors > 1:
-            True
+            return True
 
         if config.base_dir.exists():
             allowed = {"state", "audit", "recovery", "backups"}

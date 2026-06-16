@@ -1,5 +1,5 @@
-from .data_classes import Issue, DiagnosticReport
-from .doctor import DoctorEngine
+from muraq_kms.core.doctor.data_classes import Issue, DiagnosticReport
+from muraq_kms.core.doctor.doctor import DoctorEngine
 
 __all__ = [
     "Issue",

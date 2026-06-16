@@ -1,9 +1,8 @@
 import time
-import ctypes
 from typing import Generator
 from contextlib import contextmanager
 
-from muraq_kms.policies.policy_error import LeaseExpiredError
+from muraq_kms.policies.policy_errors import LeaseExpiredError
 
 class EphemeralKeyLease:
     """
