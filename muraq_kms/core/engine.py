@@ -1,7 +1,11 @@
 from enum import Enum, auto
 from typing import Any, Optional, Dict
 
+# from muraq_kms.audit.repository import AuditRepository
+
 from muraq_kms.storage.config import StorageConfig
+# from muraq_kms.storage.pool import StoragePool
+
 from muraq_kms.crypto.kdf import derive_pp_key
 from muraq_kms.crypto.primitives import decrypt_envelope, split_root_secret
 from muraq_kms.crypto.system import verify_manifest_signature
@@ -93,7 +97,7 @@ class CoreEngine:
                 kwk = b"\x00" * len(kwk)
             if 'raw_drs' in locals() and raw_drs:
                 raw_drs = b"\x00" * len(raw_drs)
-            if rmk in locals() and rmk:
+            if 'rmk' in locals() and rmk:
                 rmk = b"\x00" * len(rmk)
             if 'ask' in locals() and ask:
                 ask = b"\x00" * len(ask)

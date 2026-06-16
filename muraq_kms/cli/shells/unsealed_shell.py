@@ -28,7 +28,6 @@ class MKMSUnsealedShell(BaseKMSShell):
         uptime = time.strftime("%H:%M:%S", time.gmtime(uptime_delta))
         inner_width = 66 
 
-        # Build lines by calculating dynamic whitespace explicitly, ignoring invisible ANSI weights
         dep_line = f"│ {UI.ANSIESCAPE.DIM}Deployment ID:{UI.ANSIESCAPE.RESET} {deployment_id}"
         dep_padding = inner_width - (len("Deployment ID: ") + len(deployment_id))
         dep_line += (" " * dep_padding) + " │"

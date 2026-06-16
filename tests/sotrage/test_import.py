@@ -4,4 +4,4 @@ def test_import_storage_has_no_side_effects(storage_config, monkeypatch):
     import muraq_kms.storage
 
     assert not storage_config.db_path.exists()
-    assert muraq_kms.storage.__all__ == ["StorageConfig", "MigrationRunner", "SQLiteStorage"]
+    assert muraq_kms.storage.__all__ == ["StorageConfig", "MigrationRunner", "SQLiteStorage", "StoragePool"]

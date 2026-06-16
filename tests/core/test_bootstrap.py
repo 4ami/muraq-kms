@@ -47,10 +47,8 @@ def test_bootstrap_happy_path(storage_config, valid_passphrase):
 
 
 def test_bootstrap_enforces_strict_idempotency(storage_config, valid_passphrase):
-    # First valid bootstrap execution path
     bootstrap(config=storage_config, passphrase=valid_passphrase, force=False)
 
-    # Secondary execution attempt sequentially must throw an explicit exception
     with pytest.raises(AlreadyInitializedError) as exc_info:
         bootstrap(config=storage_config, passphrase=valid_passphrase, force=False)
         
@@ -58,14 +56,12 @@ def test_bootstrap_enforces_strict_idempotency(storage_config, valid_passphrase)
 
 
 def test_bootstrap_force_override_purges_old_state(storage_config, valid_passphrase):
-    # 1. Initialize the system for the first time
     bootstrap(config=storage_config, passphrase=valid_passphrase, force=False)
     
     with open(storage_config.base_dir / "manifest.json", "r") as m:
         initial_manifest = json.load(m)
     initial_did = initial_manifest["deployment_id"]
 
-    # 2. Re-run bootstrap with a completely different passphrase and the force flag
     new_passphrase = "Completely-Different-Passphrase-2026!!!"
     bootstrap(config=storage_config, passphrase=new_passphrase, force=True)
 

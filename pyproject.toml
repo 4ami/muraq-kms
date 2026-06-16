@@ -18,12 +18,14 @@ classifiers = [
 dependencies = [
     "argon2-cffi>=25.1.0",
     "cryptography>=48.0.0",
+    "pynacl>=1.6.2",
     "typer>=0.26.7",
 ]
 
 [project.optional-dependencies]
 test = [
     "pytest>=8.4.1",
+    "pytest-asyncio>=1.4.0",
 ]
 
 [tool.setuptools.dynamic]
