@@ -1,16 +1,18 @@
-import typer
+from typer import Typer, Option, Context
 from typing import Optional
 from pathlib import Path
 
 from muraq_kms.storage.config import StorageConfig
 from muraq_kms.cli.shell import MKMSShell
 
-app = typer.Typer(help="Muraq Key Management Subsystem (MKMS) CLI Engine Console.")
+app = Typer(
+    help="Muraq Key Management Subsystem (MKMS) CLI Engine Console."
+)
 
 @app.callback(invoke_without_command=True)
 def main(
-    ctx: typer.Context,
-    data_dir: Optional[Path] = typer.Option(
+    ctx: Context,
+    data_dir: Optional[Path] = Option(
         None, 
         "--data-dir", "-d", 
         envvar="MKMS_DATA_DIR", 

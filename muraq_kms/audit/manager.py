@@ -31,7 +31,7 @@ class AuditManager:
             digestmod=hashlib.sha256
         ).hexdigest()
     
-    async def log_event_async(self, action:str, actor:str, details:dict, timestamp:Optional[datetime], status:str, ask:bytes) -> AuditEntry:
+    async def log_event_async(self, action:str, actor:str, details:dict, status:str, ask:bytes, timestamp:Optional[datetime] = None) -> AuditEntry:
         prev_hash = "00000000000000000000000000000000"
         if self.repo:
             latest = await self.repo.fetch_latest_record_async()
@@ -63,7 +63,7 @@ class AuditManager:
             entry.id = row['_id']
         return entry
     
-    def log_event_sync(self, action:str, actor:str, details:dict, timestamp:Optional[datetime], status:str, ask:bytes) -> AuditEntry:
+    def log_event_sync(self, action:str, actor:str, details:dict, status:str, ask:bytes, timestamp:Optional[datetime] = None) -> AuditEntry:
         prev_hash = "00000000000000000000000000000000"
         if self.repo:
             latest = self.repo.fetch_latest_record_sync()

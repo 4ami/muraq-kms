@@ -79,5 +79,5 @@ class MuraqKMSAlgorithms:
     def get_spec(cls, code:str) -> AlgorithmSpec:
         normalized = code.upper().strip()
         if normalized not in _REGISTRY:
-            raise ValueError(f"Unsupported algorithm '{code}'. Supported types are: {cls.ALL_CODES}")
+            raise ValueError(f"Unsupported algorithm '{code}'. Supported types are: {cls.CODES}")
         return _REGISTRY[normalized]

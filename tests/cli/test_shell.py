@@ -19,6 +19,8 @@ def test_root_shell_remains_sealed(test_cli_shell):
 def test_unsealed_sub_shell_prompt_lifecycle(test_cli_shell):
     """The routed unsealed sub-shell must evaluate and render the active unsealed prompt layout."""
     test_cli_shell.engine._state = EngineState.UNSEALED
+    test_cli_shell.engine._ask = b"test-ask"
+    test_cli_shell.engine._rmk = b"test-rmk"
     test_cli_shell.engine._deployment_id = "mkms_did_900d6125-5472-454e-b6de-0e895d54157f"
     
     unsealed_shell = MKMSUnsealedShell(test_cli_shell.config, test_cli_shell.engine)

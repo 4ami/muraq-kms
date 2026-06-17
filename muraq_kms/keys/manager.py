@@ -26,12 +26,11 @@ class KeyManager:
         self.rmk = rmk
         self.evaluator = evaluator or PolicyEvaluator()
     
-    async def create_key_async(self, name: str, algorithm: str = "XChaCha20", description: Optional[str] = None, policy: Optional[KeyAccessPolicy] = None) -> KeyVersionModel:
+    async def create_key_async(self, actor:str, name: str, purpose:str, algorithm: str = "XChaCha20", description: Optional[str] = None, policy: Optional[KeyAccessPolicy] = None) -> KeyVersionModel:
         """
         Creates a new logical container if missing and maps its initial v1 active key material.
         All configurations flow into your strict PolicyManifest engine.
         """
-        actor = "system:core"
         p = policy or KeyAccessPolicy()
         spec = MuraqKMSAlgorithms.get_spec(algorithm)
         
@@ -43,6 +42,7 @@ class KeyManager:
             
             logical_key = await self.repo.create_logical_key_async(
                 name=name, 
+                purpose=purpose,
                 description=description,
                 exportable=1 if p.export else 0,
                 borrowable=1 if p.borrow else 0,
@@ -88,12 +88,11 @@ class KeyManager:
                 raise
             raise KeyLifecycleError(f"Failed to create key '{name}': {str(e)}")
 
-    def create_key_sync(self, name: str, algorithm: str = "XChaCha20", description: Optional[str] = None, policy: Optional[KeyAccessPolicy] = None) -> KeyVersionModel:
+    def create_key_sync(self, actor:str, name: str, purpose:str, algorithm: str = "XChaCha20", description: Optional[str] = None, policy: Optional[KeyAccessPolicy] = None) -> KeyVersionModel:
         """
         Creates a new logical container if missing and maps its initial v1 active key material.
         All configurations flow into your strict PolicyManifest engine.
         """
-        actor = "system:core"
         p = policy or KeyAccessPolicy()
         spec = MuraqKMSAlgorithms.get_spec(algorithm)
         
@@ -104,7 +103,8 @@ class KeyManager:
                 raise KeyLifecycleError(f"Key Identity Conflict: Logical key '{name}' already exists.")
             
             logical_key = self.repo.create_logical_key_sync(
-                name=name, 
+                name=name,
+                purpose=purpose,
                 description=description,
                 exportable=1 if p.export else 0,
                 borrowable=1 if p.borrow else 0,
@@ -151,12 +151,11 @@ class KeyManager:
             raise KeyLifecycleError(f"Failed to create key '{name}': {str(e)}")
     
     @asynccontextmanager
-    async def borrow_key_async(self, name:str, version:Optional[int] = None) -> Generator[EphemeralKeyLease, None, None]:
+    async def borrow_key_async(self, actor:str, name:str, version:Optional[int] = None) -> Generator[EphemeralKeyLease, None, None]:
         """
         FR-14 & FR-21 Controlled Ephemeral Borrow access pattern. 
         Enforces runtime-scoped contexts, zeroization window assertions, and audit logging.
         """
-        actor = "sdk:application"
 
         lk = await self.repo.get_logical_key_by_name_async(name=name)
 
@@ -190,15 +189,13 @@ class KeyManager:
             yield lease
    
     @contextmanager
-    def borrow_key_async(self, name:str, version:Optional[int] = None) -> Generator[EphemeralKeyLease, None, None]:
+    def borrow_key_sync(self, actor:str, name:str, version:Optional[int] = None) -> Generator[EphemeralKeyLease, None, None]:
         """
         FR-14 & FR-21 Controlled Ephemeral Borrow access pattern. 
         Enforces runtime-scoped contexts, zeroization window assertions, and audit logging.
         """
-        actor = "sdk:application"
 
         lk = self.repo.get_logical_key_by_name_sync(name=name)
-
         if not lk or lk['borrowable'] != 1:
             self.audit.log_event_sync(
                 actor=actor,
