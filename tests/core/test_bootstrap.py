@@ -7,6 +7,7 @@ from muraq_kms.storage.sqlite import SQLiteStorage
 from muraq_kms.core.bootstrap import bootstrap, AlreadyInitializedError
 from muraq_kms.crypto.kdf import derive_pp_key
 from muraq_kms.crypto.primitives import decrypt_envelope, split_root_secret
+from muraq_kms.core.actor import cli_actor
 
 def test_bootstrap_happy_path(storage_config, valid_passphrase):
     """
@@ -34,6 +35,7 @@ def test_bootstrap_happy_path(storage_config, valid_passphrase):
     assert "initialized_at" in manifest_data
 
     storage = SQLiteStorage(config=storage_config)
+    actor = f"[MKMS-bootstrap]-{cli_actor()}"
     try:
         row = storage.fetchone(
             "SELECT action, actor, status, previous_hash FROM audit_log WHERE action = ?;",
@@ -41,7 +43,7 @@ def test_bootstrap_happy_path(storage_config, valid_passphrase):
             domain="audit"
         )
         assert row is not None
-        assert row == ("MURAQ-KMS-INIT", "SYSTEM", "SUCCESS", "00000000000000000000000000000000")
+        assert row == ("MURAQ-KMS-INIT", actor, "SUCCESS", "00000000000000000000000000000000")
     finally:
         storage.close()
 

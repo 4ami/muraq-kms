@@ -13,14 +13,12 @@ from muraq_kms.crypto.system import calculate_manifest_signature
 
 from pathlib import Path
 
-import hmac
-import hashlib
-
 import json
 from datetime import datetime, timezone
 from muraq_kms import __version__
 
 from muraq_kms.core.exceptions import AlreadyInitializedError, UnsafeDirectoryError
+from muraq_kms.core.actor import cli_actor
 
 def chech_safe_path(path:Path) -> bool:
     abs_path = path.resolve()
@@ -106,11 +104,11 @@ def build_manifest(
 def genesis_audit(cfg:StorageConfig, data:dict[str, ...], ask:bytes) -> bool:
     from muraq_kms.audit.manager import AuditManager
     manager = AuditManager(StoragePool(cfg))
-
+    actor = cli_actor()
     try:
         timestamp = data["initialized_at"]
         action = "MURAQ-KMS-INIT"
-        actor = "SYSTEM"
+        actor = f"[MKMS-bootstrap]-{actor}"
         details = {"deployment_id": data["deployment_id"]}
         status = "SUCCESS"
 

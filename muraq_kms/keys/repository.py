@@ -1,4 +1,4 @@
-from typing import Optional, Any, dict
+from typing import Optional, Any
 from datetime import datetime, timezone
 
 from muraq_kms.storage.pool import StoragePool
@@ -8,57 +8,66 @@ class KeyRepository:
     def __init__(self, pool:StoragePool) -> None:
         self.pool = pool
     
-    async def create_logical_key_async(self, name:str, description:Optional[str], exportable: int, 
+    async def create_logical_key_async(self, name:str, purpose: str, description:Optional[str], exportable: int, 
         borrowable: int, borrow_ttl: int) -> dict[str, Any]:
         sql = """
-        INSERT INTO logical_keys (name, description, exportable, borrowable, borrow_ttl_seconds, created_at)
-        VALUES (?, ?, ?, ?, ?, ?)
-        RETURNING _id, name, description, exportable, borrowable, borrow_ttl_seconds, created_at;
+        INSERT INTO logical_keys (name, purpose, description, exportable, borrowable, borrow_ttl_seconds, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        RETURNING _id, name, purpose, description, exportable, borrowable, borrow_ttl_seconds, created_at;
         """
-        cursor = await self.pool.async_backend.execute(sql,
-        (name, description, exportable, borrowable, borrow_ttl, datetime.now(tz=timezone.utc).timestamp()))
+        row = None
+        async with self.pool.async_backend.transaction(domain='keys') as conn:
+            cursor = conn.execute(sql,
+            (name, purpose, description, exportable, borrowable, borrow_ttl, datetime.now(tz=timezone.utc).timestamp()))
+            row = cursor.fetchone()
+        
+        if not row:
+            raise RuntimeError(f"Failed to create key {name}.")
 
-        row = cursor.fetchone()
         return {
-            "_id": row[0], "name": row[1], "description": row[2],
-            "exportable": int(row[3]), "borrowable": int(row[4]), "borrow_ttl_seconds": int(row[5])
+            "_id": row[0], "name": row[1], "purpose": row[2], "description": row[3],
+            "exportable": int(row[4]), "borrowable": int(row[5]), "borrow_ttl_seconds": int(row[6])
         }
 
-    def create_logical_key_sync(self, name:str, description:Optional[str], exportable: int, 
+    def create_logical_key_sync(self, name:str, purpose: str, description:Optional[str], exportable: int, 
         borrowable: int, borrow_ttl: int) -> dict[str, Any]:
         sql = """
-        INSERT INTO logical_keys (name, description, exportable, borrowable, borrow_ttl_seconds, created_at)
-        VALUES (?, ?, ?, ?, ?, ?)
-        RETURNING _id, name, description, exportable, borrowable, borrow_ttl_seconds, created_at;
+        INSERT INTO logical_keys (name, purpose, description, exportable, borrowable, borrow_ttl_seconds, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        RETURNING _id, name, purpose, description, exportable, borrowable, borrow_ttl_seconds, created_at;
         """
-        cursor = self.pool.sync_backend.execute(sql,
-        (name, description, exportable, borrowable, borrow_ttl, datetime.now(tz=timezone.utc).timestamp()))
-
-        row = cursor.fetchone()
+        row = None
+        with self.pool.sync_backend.transaction(domain='keys') as conn:
+            cursor = conn.execute(sql,
+            (name, purpose, description, exportable, borrowable, borrow_ttl, datetime.now(tz=timezone.utc).timestamp()))
+            row = cursor.fetchone()
+        
+        if not row:
+            raise RuntimeError(f"Failed to create key {name}.")
 
         return {
-            "_id": row[0], "name": row[1], "description": row[2],
-            "exportable": int(row[3]), "borrowable": int(row[4]), "borrow_ttl_seconds": int(row[5])
+            "_id": row[0], "name": row[1], "purpose": row[2], "description": row[3],
+            "exportable": int(row[4]), "borrowable": int(row[5]), "borrow_ttl_seconds": int(row[6])
         }
     
     async def get_logical_key_by_name_async(self, name:str) -> Optional[dict[str, Any]]:
-        sql = "SELECT _id, name, description, exportable, borrowable, borrow_ttl_seconds, created_at FROM logical_keys WHERE name = ?;"
+        sql = "SELECT _id, name, purpose, description, exportable, borrowable, borrow_ttl_seconds, created_at FROM logical_keys WHERE name = ?;"
         row = await self.pool.async_backend.fetchone(sql, (name,))
         if not row: return None
         return {
-            "_id": row[0], "name": row[1], "description": row[2],
-            "exportable": row[3], "borrowable": row[4],
-            "borrow_ttl_seconds": row[5], "created_at": row[6]
+            "_id": row[0], "name": row[1], "purpose": row[2],
+            "description": row[3], "exportable": int(row[4]), "borrowable": int(row[5]),
+            "borrow_ttl_seconds": int(row[6]), "created_at": row[7]
         }
     
     def get_logical_key_by_name_sync(self, name:str) -> Optional[dict[str, Any]]:
-        sql = "SELECT _id, name, description, exportable, borrowable, borrow_ttl_seconds, created_at FROM logical_keys WHERE name = ?;"
+        sql = "SELECT _id, name, purpose, description, exportable, borrowable, borrow_ttl_seconds, created_at FROM logical_keys WHERE name = ?;"
         row = self.pool.sync_backend.fetchone(sql, (name,))
         if not row: return None
         return {
-            "_id": row[0], "name": row[1], "description": row[2],
-            "exportable": row[3], "borrowable": row[4],
-            "borrow_ttl_seconds": row[5], "created_at": row[6]
+            "_id": row[0], "name": row[1], "purpose": row[2],
+            "description": row[3], "exportable": int(row[4]), "borrowable": int(row[5]),
+            "borrow_ttl_seconds": int(row[6]), "created_at": row[7]
         }
     
     async def save_key_version_async(self, model:KeyVersionModel) -> dict[str, Any]:
@@ -67,14 +76,18 @@ class KeyRepository:
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         RETURNING kid, logical_key_id, version, state, algorithm, raw_material, created_at, activated_at;
         """
-        cursor = await self.pool.async_backend.execute(
-            sql, (model.kid, model.logical_key_id, 
-            model.version, model.state.value, model.algorithm, 
-            model.raw_material, model.created_at.timestamp(), 
-            model.activated_at.timestamp() if model.activated_at else None)
-        )
+        row = None
+        async with self.pool.async_backend.transaction(domain='keys') as conn:
+            cursor = conn.execute(
+                sql, (model.kid, model.logical_key_id, 
+                model.version, model.state.value, model.algorithm, 
+                model.raw_material, model.created_at.timestamp(), 
+                model.activated_at.timestamp() if model.activated_at else None)
+            )
+            row = cursor.fetchone()
 
-        row = cursor.fetchone()
+        if not row:
+            raise RuntimeError(f"Failed to save key version {model.kid}.")
 
         return {
             "kid": row[0], "logical_key_id": row[1], "version": row[2], 
@@ -88,14 +101,18 @@ class KeyRepository:
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         RETURNING kid, logical_key_id, version, state, algorithm, raw_material, created_at, activated_at;
         """
-        cursor = self.pool.sync_backend.execute(
-            sql, (model.kid, model.logical_key_id, 
-            model.version, model.state.value, model.algorithm, 
-            model.raw_material, model.created_at.timestamp(), 
-            model.activated_at.timestamp() if model.activated_at else None)
-        )
+        row = None
+        with self.pool.sync_backend.transaction(domain='keys') as conn:
+            cursor = conn.execute(
+                sql, (model.kid, model.logical_key_id, 
+                model.version, model.state.value, model.algorithm, 
+                model.raw_material, model.created_at.timestamp(), 
+                model.activated_at.timestamp() if model.activated_at else None)
+            )
+            row = cursor.fetchone()
 
-        row = cursor.fetchone()
+        if not row:
+            raise RuntimeError(f"Failed to save key version {model.kid}.")
 
         return {
             "kid": row[0], "logical_key_id": row[1], "version": row[2], 

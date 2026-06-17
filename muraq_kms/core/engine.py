@@ -1,10 +1,7 @@
 from enum import Enum, auto
 from typing import Any, Optional, Dict
 
-# from muraq_kms.audit.repository import AuditRepository
-
 from muraq_kms.storage.config import StorageConfig
-# from muraq_kms.storage.pool import StoragePool
 
 from muraq_kms.crypto.kdf import derive_pp_key
 from muraq_kms.crypto.primitives import decrypt_envelope, split_root_secret

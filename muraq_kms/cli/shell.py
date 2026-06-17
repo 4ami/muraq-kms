@@ -57,7 +57,7 @@ class MKMSShell(BaseKMSShell):
         Initializes the local appliance deployment state.
         Usage: init [--force]
         """
-
+        
         if "--force" in arg or "-f" in arg:
             confirm = UI.ask_yes_no("Are you absolutely sure you want to FORCE re-initialization?", default=False)
             if not confirm:

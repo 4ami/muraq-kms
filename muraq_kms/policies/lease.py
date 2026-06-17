@@ -15,6 +15,7 @@ class EphemeralKeyLease:
         self._buffer:bytearray = bytearray(raw_bytes)
         self._expires_at:float = time.time() + ttl_seconds
         self._invalidated:bool = False
+        self.ttl_seconds:int = ttl_seconds
     
     @property
     def key_material(self) -> bytes:
