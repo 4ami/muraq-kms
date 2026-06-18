@@ -95,8 +95,10 @@ class AuditManager:
             entry.id = row['_id']
         return entry
     
-    def _verfication_loop(self, rows:List[tuple[Any, ...]], ask:bytes) -> bool:
+    def _verfication_loop(self, rows:List[tuple[Any, ...]], ask:bytes, verbose:bool = False) -> tuple[bool, List[dict]]:
         expected_previous_hash = "00000000000000000000000000000000"
+        chain_intact = True
+        enriched_res = []
 
         for row in rows:
             entry = AuditEntry(
@@ -109,34 +111,34 @@ class AuditManager:
                 previous_hash=row[5],
                 hash=row[6]
             )
-
-            if entry.previous_hash != expected_previous_hash:
-                raise AuditIntegrityError(
-                    f"CRITICAL: Audit chain break detected at row ID {entry.id}! "
-                    f"Record expects parent hash '{entry.previous_hash}', but actual calculated history was '{expected_previous_hash}'."
-                )
-
             calculated_hash = self.compute_runtime_hash(entry, ask)
+            has_break = entry.previous_hash != expected_previous_hash
+            is_tampered = not hmac.compare_digest(entry.hash, calculated_hash)
 
-            if not hmac.compare_digest(entry.hash, calculated_hash):
-                 raise AuditIntegrityError(
-                    f"CRITICAL: Record tampering discovered at row ID {entry.id}! "
-                    f"Database hash payload value has been modified post-write."
-                )
+            row_intact = (not has_break) and (not is_tampered)
+            if not row_intact:
+                chain_intact = False
+                if not verbose:
+                    raise AuditIntegrityError(
+                        f"CRITICAL: Audit chain break detected at row ID {entry.id}! "
+                        f"Record expects parent hash '{entry.previous_hash}', but actual calculated history was '{expected_previous_hash}'."
+                    )
+            
+            enriched_res.append({"raw_row": row, "is_intact": row_intact})
             
             expected_previous_hash = entry.hash
         
-        return True
+        return chain_intact, enriched_res
 
-    async def verify_chain_integrity_async(self, ask:bytes) -> bool:
+    async def verify_chain_integrity_async(self, ask:bytes, verbose:bool = False) -> tuple[bool, List[dict]]:
         if not self.repo:
-            return True
+            return True, []
         
         rows = await self.repo.all_async(asc=True)
-        return self._verfication_loop(rows, ask)
+        return self._verfication_loop(rows, ask, verbose)
     
-    def verify_chain_integrity_sync(self, ask:bytes) -> bool:
+    def verify_chain_integrity_sync(self, ask:bytes, verbose:bool = False) -> tuple[bool, List[dict]]:
         if not self.repo:
-            return True
+            return True, []
         rows = self.repo.all_sync(asc=True)
-        return self._verfication_loop(rows, ask)
+        return self._verfication_loop(rows, ask, verbose)
