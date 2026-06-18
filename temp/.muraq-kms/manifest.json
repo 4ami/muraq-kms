@@ -1,7 +1,0 @@
-{
-    "version": "v0.0.0.dev0",
-    "deployment_id": "mkms_did_17cd5a47-ba8a-4d8a-aaad-d10341e38d35",
-    "kdf_salt_hex": "f386cd09d9fdf50ab29c1d1566e3e4d6",
-    "deployment_salt_hex": "07b2fa1bc7f868de69e7e17d86a8a013ffc16fe14fd8cf0697723cf4a994b29e",
-    "initialized_at": "2026-06-17T11:24:48.438361+00:00"
-}

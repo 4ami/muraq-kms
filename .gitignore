@@ -1,6 +1,7 @@
 .srs
 .venv
 .pytest_cache
+./temp
 **/__pycache__/*
 *.DS_Store
 *.egg-info/

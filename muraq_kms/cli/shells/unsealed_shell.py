@@ -1,10 +1,13 @@
 import time
-import argparse
+import shlex
+from argparse import ArgumentError
 
 from muraq_kms.cli.shells.base_shell import BaseKMSShell
 
+from muraq_kms.cli.services.algorithms_service import list_algorithms
+
 from muraq_kms.cli.ui.ui import UI
-from muraq_kms.cli.ui.widgets import Spinner, Frame
+from muraq_kms.cli.ui.widgets import Spinner
 
 from muraq_kms.storage.config import StorageConfig
 from muraq_kms.storage.pool import StoragePool
@@ -15,9 +18,11 @@ from muraq_kms.audit.manager import AuditManager
 from muraq_kms.keys.manager import KeyManager
 
 from muraq_kms.core.actor import cli_actor
-from muraq_kms.crypto.registry import MuraqKMSAlgorithms
 
-from muraq_kms.policies.models import KeyAccessPolicy
+from muraq_kms.cli.services import key_services, audit_services
+from muraq_kms.cli.args.key_args import build_key_parser
+from muraq_kms.cli.args.audit_args import build_audit_parser
+
 
 class MKMSUnsealedShell(BaseKMSShell):
     """
@@ -30,6 +35,9 @@ class MKMSUnsealedShell(BaseKMSShell):
 
     _footer = f"""╰────────────────────────────────────────────────────────────────────╯{UI.ANSIESCAPE.RESET}
 Type {UI.COLORS.YELLOW}help{UI.COLORS.CYAN} or {UI.COLORS.YELLOW}?{UI.COLORS.CYAN} to look up active crypto operations."""
+
+    _key_parser = build_key_parser()
+    _audit_parser = build_audit_parser()
 
     def __init__(self, config: StorageConfig, engine: CoreEngine) -> None:
         super().__init__(config, engine)
@@ -89,17 +97,6 @@ Type {UI.COLORS.YELLOW}help{UI.COLORS.CYAN} or {UI.COLORS.YELLOW}?{UI.COLORS.CYA
         intro += self._footer
         self.intro = intro
         return line
-#         self.intro = f"""
-# {UI.COLORS.GREEN}╭────────────────────────────────────────────────────────────────────╮
-# │ {UI.ANSIESCAPE.BOLD}MURAQ-KMS RUNTIME LAYER [UNSEALED ENVIRONMENT]                     {UI.ANSIESCAPE.RESET}{UI.COLORS.GREEN}│
-# ├────────────────────────────────────────────────────────────────────┤
-# {dep_line}
-# {uptime_line}
-# {lock_line}
-# ╰────────────────────────────────────────────────────────────────────╯{UI.ANSIESCAPE.RESET}
-# Type {UI.COLORS.YELLOW}help{UI.COLORS.CYAN} or {UI.COLORS.YELLOW}?{UI.COLORS.CYAN} to look up active crypto operations.
-# """.strip()
-
 
     def _update_prompt(self) -> None:
         dep_id = getattr(self.engine, 'deployment_id', None)
@@ -127,197 +124,85 @@ Type {UI.COLORS.YELLOW}help{UI.COLORS.CYAN} or {UI.COLORS.YELLOW}?{UI.COLORS.CYA
         Displays a structured layout of all active cryptographic engines and primitives.
         Usage: algorithms
         """
-        with Frame(title=" MURAQ-KMS SUPPORTED CRYPTOGRAPHIC ALGORITHMS ", color=UI.COLORS.BLUE) as frame:
-            frame.line(f"{UI.COLORS.CYAN}{UI.ANSIESCAPE.BOLD}[ SYMMETRIC PRIMITIVES ]{UI.ANSIESCAPE.RESET}")
-            for code in MuraqKMSAlgorithms.SYMMETRIC_CODES:
-                spec = MuraqKMSAlgorithms.get_spec(code)
-                frame.line(f"💡 {UI.COLORS.YELLOW}{code}{UI.ANSIESCAPE.RESET} — {spec.description}")
-            
-            frame.line("")
-            
-            frame.line(f"{UI.COLORS.CYAN}{UI.ANSIESCAPE.BOLD}[ ASYMMETRIC SCHEMES ]{UI.ANSIESCAPE.RESET}")
-            for code in MuraqKMSAlgorithms.ASYMMETRIC_CODES:
-                spec = MuraqKMSAlgorithms.get_spec(code)
-                frame.line(f"💡 {UI.COLORS.YELLOW}{code}{UI.ANSIESCAPE.RESET} — {spec.description}")
-            
-            frame.line("")
-            
-            frame.line(
-                f"✔ {UI.ANSIESCAPE.DIM}To generate any engine spec layer variant above, execute: "
-                f"{UI.COLORS.GREEN}create_key <name> <ALGORITHM_CODE>{UI.ANSIESCAPE.RESET}"
-            )
+        list_algorithms()
 
-    def do_create_key(self, arg:str) -> None:
+    def do_key(self, args:str) -> None:
         """
-        Creates a new logical cryptographic key container with explicit access policies.
-        Usage: create_key <key_name> <algorithm> --purpose <encryption|signing|wrapping> [--export] [--borrow] [--ttl <seconds>]
-        Example: create_key order-signing-key RS256 --purpose signing --borrow --ttl 60
+        Unified cryptographic key management utility.
+        Usage:
+            key -create <name> <algorithm> --purpose <purpose> [--desc <text>] [--export] [--borrow] [--ttl <seconds>]
+            key -v -name <key_name>
+            key -b <key_name> [<version>]
+            key -ls [-l <limit>]
         """
-        parser = argparse.ArgumentParser(prog="create_key", add_help=False, exit_on_error=False)
-        parser.add_argument("name", help="Unique logical key identifier name.")
-        parser.add_argument("algorithm", help="Cryptographic specification code (e.g., AES256, RS256).")
-        parser.add_argument(
-            "--purpose", required=True, choices=["encryption", "signing", "wrapping"],
-            help="Designated business usage function of raw key material assets."
-        )
-        parser.add_argument("--export", action="store_true", help="Enable permanent raw material extraction.")
-        parser.add_argument("--borrow", action="store_true", help="Enable temporary scoped leasing.")
-        parser.add_argument("--ttl", type=int, default=30, help="Enforced maximum lifespan of an ephemeral key lease.")
-
-        tokens = arg.strip().split()
+        tokens = shlex.split(args.strip())
         if not tokens:
             print(f"{UI.STATUS.FAIL} Operational error: Key identifier name argument is missing.")
             return
         
         try:
-            parsed_args = parser.parse_args(tokens)
-        except (argparse.ArgumentError, TypeError) as parse_err:
-            print(f"{UI.STATUS.FAIL} Syntax Error: {str(parse_err)}")
-            return
-        
-        try:
-            spec = MuraqKMSAlgorithms.get_spec(parsed_args.algorithm)
-        except ValueError as algo_err:
-            print(f"{UI.STATUS.FAIL} Cryptographic Constraint Violation: {str(algo_err)}")
-            return
-
-        try:
-            policy = KeyAccessPolicy(
-                export=parsed_args.export,
-                borrow=parsed_args.borrow,
-                borrow_ttl_seconds=parsed_args.ttl
-            )
-        except Exception as policy_error:
-            print(f"{UI.STATUS.FAIL} Policy Validation Error: {str(policy_error).splitlines()[0]}")
-            return
-
-        try:
-            with Spinner(f"Generating cryptographically sound {spec.name} material primitives for '{parsed_args.name}'..."):
-                 model = self.key_manager.create_key_sync(
-                    actor=self._actor, 
-                    name=parsed_args.name, 
-                    purpose=parsed_args.purpose, 
-                    algorithm=spec.name,
-                    policy=policy
-                )
-            print(f"{UI.STATUS.SUCCESS} Key version tracking container '{model.kid}' successfully generated.")
-
-            print(f"   {UI.ANSIESCAPE.DIM}├─ Algorithm      : {spec.name} ({spec.type.upper()})")
-            print(f"   ├─ Export Allowed : {policy.export}")
-            print(f"   ├─ Borrow Scoped  : {policy.borrow}")
-            print(f"   └─ Lease Window   : {policy.borrow_ttl_seconds}s{UI.ANSIESCAPE.RESET}\n")
-        except Exception as e:
-            print(f"{UI.STATUS.FAIL} Execution failed: {str(e)}")
-
-    def do_borrow_key(self, arg: str) -> None:
-        """
-        Temporarily leases raw key material within an isolated runtime zeroization boundary.
-        Usage: borrow_key <key_name> [version]
-        Example: borrow_key microservice-auth-key 1
-        """
-        parser = argparse.ArgumentParser(prog="borrow_key", add_help=False, exit_on_error=False)
-        parser.add_argument("name", help="Target unique logical key identifier name.")
-        parser.add_argument("version", type=int, nargs="?", default=None, help="Optional version number.")
-
-        tokens = arg.strip().split()
-        if not tokens:
-            print(f"{UI.STATUS.FAIL} Arguments missing. Usage: borrow_key <name> [version]")
-            return
-
-        try:
-            parsed_args = parser.parse_args(tokens)
-        except (argparse.ArgumentError, TypeError) as parse_err:
+            parsed_args = self._key_parser.parse_args(tokens)
+        except (ArgumentError, TypeError) as parse_err:
             print(f"{UI.STATUS.FAIL} Syntax Error: {str(parse_err)}")
             return
 
-        try:
-            borrow_ctx = self.key_manager.borrow_key_sync(
-                actor=self._actor,
-                name=parsed_args.name,
-                version=parsed_args.version
-            )
+        if parsed_args.operation == "-create":
+            if not parsed_args.borrow and parsed_args.ttl is not None:
+                print(f"{UI.STATUS.FAIL} Syntax Error: Cannot specify --ttl without enabling --borrow.")
+                return
             
-            print(f"{UI.STATUS.INFO} Requesting secure execution lease allocation segment...")
-            
-            with borrow_ctx as lease:
-                print(f"{UI.STATUS.SUCCESS} Ephemeral cryptographic lease successfully activated.")
-                print(f"   {UI.ANSIESCAPE.DIM}├─ Lease Handle KeyID : {lease.key_id}")
-                print(f"   ├─ Memory Address   : {hex(id(lease.key_material))}")
-                print(f"   ├─ RAW KEY MATERIAL : {UI.COLORS.YELLOW}{lease.key_material.hex()}{UI.ANSIESCAPE.RESET}")
-                print(f"   └─ Lifespan Window  : Active inside this terminal context{UI.ANSIESCAPE.RESET}")
+            if not parsed_args.borrow:
+                parsed_args.ttl = 0
+            elif parsed_args is None:
+                parsed_args.ttl = 30
 
-                time.sleep(lease.ttl_seconds)
-                self.do_clear(None)
-            print(f"{UI.STATUS.SUCCESS} Lease expired. Volatile transient memory registers zeroed out successfully.")
+        dispatch = {
+            "-create": lambda: key_services.handle_create(self.key_manager, self._actor, parsed_args),
+            "-b": lambda: key_services.handle_borrow(self.key_manager, self._actor, parsed_args.name, self.do_clear, parsed_args.version),
+        }
 
-        except Exception as e:
-            print(f"{UI.STATUS.FAIL} Lease Request Refused: {str(e)}")
+        handler = dispatch.get(parsed_args.operation)
+        if handler:
+            handler()
+        else:
+            print(f"{UI.STATUS.FAIL} Unsupported operation: {parsed_args.operation}")
 
-    def do_keys(self, arg: str) -> None:
+    def do_keys(self, arg:str) -> None:
         """
         lists keys.
         Usage: list, -ls
         """
         print(f"{UI.STATUS.INFO} Accessing decoupled active cryptographic keys...")
 
-    def do_logs(self, arg: str) -> None:
-        """
-        Monitors runtime append-only cryptographic log audit trails with integrity checking.
-        Usage: logs [--limit <count>] [--verify]
-        Example: logs --limit 10 --verify
-        """
-        parser = argparse.ArgumentParser(prog="logs", add_help=False, exit_on_error=False)
-        parser.add_argument("--limit", type=int, default=20, help="Number of records to fetch.")
-        parser.add_argument("--verify", action="store_true", help="Perform real-time HMAC chain integrity scan.")
 
+    def do_audit(self,  arg:str) -> None:
+        """
+        Unified cryptographic audit ledger historical trace validation engine interface.
+        Usage:
+            audit -ls [-l <limit>]
+            audit -check [-v]
+        """
+        tokens = shlex.split(arg.strip())
+        if not tokens:
+            print(f"{UI.STATUS.FAIL} Operational error: Sub-command operation or arguments missing.")
+            return
+        
         try:
-            parsed_args = parser.parse_args(arg.strip().split())
-        except (argparse.ArgumentError, TypeError) as parse_err:
+            parsed_args = self._audit_parser.parse_args(tokens)
+        except (ArgumentError, TypeError) as parse_err:
             print(f"{UI.STATUS.FAIL} Syntax Error: {str(parse_err)}")
             return
 
-        if not self.audit_manager.repo:
-            print(f"{UI.STATUS.FAIL} Error: Audit log repository pipeline initialization missing.")
-            return
+        dispatch = {
+            "-ls": lambda: audit_services.handle_audit_list(self.audit_manager, parsed_args),
+            "-check": lambda: audit_services.handle_audit_integrity(self.audit_manager, self.engine.get_ask(), parsed_args),
+        }
 
-        if parsed_args.verify:
-            with Spinner("Scanning append-only cryptographic ledger sequence hashes..."):
-                try:
-                    self.audit_manager.verify_chain_integrity_sync(self.ask)
-                    print(f"{UI.STATUS.SUCCESS} Verification Passed: Cryptographic backlink history matches pristine runtime state.")
-                except Exception as integrity_err:
-                    print(f"{UI.STATUS.FAIL} SECURITY ALARM: {str(integrity_err)}")
-                    return
-        try:
-            rows = self.audit_manager.repo.all_sync()
-            display_rows = rows[:parsed_args.limit]
-        except Exception as db_err:
-            print(f"{UI.STATUS.FAIL} Failed to read database log rows: {str(db_err)}")
-            return
-
-        if not display_rows:
-            print(f"{UI.STATUS.INFO} Audit ledger history contains no entries yet.")
-            return
-
-        with Frame(title=f" MURAQ-KMS IMMUTABLE AUDIT TRAIL (Last {len(display_rows)} Events) ", color=UI.COLORS.CYAN) as frame:
-            for row in display_rows:
-
-                from datetime import datetime, timezone
-                dt_str = datetime.fromtimestamp(float(row[0]), tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-                
-                status_color = UI.COLORS.GREEN if row[4] == "SUCCESS" else UI.COLORS.RED
-                status_indicator = "✔" if row[4] == "SUCCESS" else "✗"
-                
-                header_line = f"[{dt_str}] ID: {row[7]} — {UI.ANSIESCAPE.BOLD}{row[1]}{UI.ANSIESCAPE.RESET}"
-                meta_line = f"   Actor : {UI.COLORS.YELLOW}{row[2]}{UI.ANSIESCAPE.RESET} | Status: {status_color}{status_indicator} {row[4]}{UI.ANSIESCAPE.RESET}"
-                payload_line = f"   Payload: {UI.ANSIESCAPE.DIM}{row[3]}{UI.ANSIESCAPE.RESET}"
-                hash_line = f"   Signature: {UI.ANSIESCAPE.DIM}{str(row[6])[:16]}...{UI.ANSIESCAPE.RESET}"
-                
-                frame.line(header_line)
-                frame.line(meta_line)
-                frame.line(payload_line)
-                frame.line(hash_line)
-                frame.line("—" * 60)
+        handler = dispatch.get(parsed_args.operation)
+        if handler:
+            handler()
+        else:
+            print(f"{UI.STATUS.FAIL} Unsupported operation: {parsed_args.operation}")
 
     def do_exit(self, arg: str) -> bool:
         with Spinner("Purging active workspace boundaries from volatile console process stack..."):
