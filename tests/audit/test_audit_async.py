@@ -33,7 +33,7 @@ class TestAuditFlowsAsync:
         mock_pool.async_backend.fetchall.return_value = mock_db_rows
 
         result = await manager.verify_chain_integrity_async(secret_key)
-        assert result is True
+        assert result[0] is True
         mock_pool.async_backend.fetchall.assert_called_once()
 
     async def test_verify_chain_integrity_async_chain_break(self, mock_pool, secret_key):
@@ -79,4 +79,4 @@ class TestAuditFlowsAsync:
 
         with pytest.raises(AuditIntegrityError) as exc_info:
             await manager.verify_chain_integrity_async(secret_key)
-        assert "Record tampering discovered at row ID 1" in str(exc_info.value)
+        assert "chain break detected at row ID 1" in str(exc_info.value)

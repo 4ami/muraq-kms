@@ -1,4 +1,4 @@
-from typing import Optional, Any
+from typing import List, Optional, Any
 from datetime import datetime, timezone
 
 from muraq_kms.storage.pool import StoragePool
@@ -161,22 +161,80 @@ class KeyRepository:
         }
     
     async def get_active_version_for_logical_key_async(self, logical_key_id: int) -> Optional[dict[str, Any]]:
-        sql = "SELECT kid, logical_key_id, version, state, algorithm, raw_material FROM key_versions WHERE logical_key_id = ? AND state = 'active' LIMIT 1;"
+        sql = "SELECT kid, logical_key_id, version, state, algorithm, raw_material, created_at, activated_at, revoked_at, archived_at, destroyed_at FROM key_versions WHERE logical_key_id = ? AND state = 'active' LIMIT 1;"
         row = await self.pool.async_backend.fetchone(sql, (logical_key_id,))
         if not row: return None
         return {
             "kid": row[0], "logical_key_id": row[1], "version": row[2], 
-            "state": row[3], "algorithm": row[4], "raw_material": row[5]
+            "state": row[3], "algorithm": row[4], "raw_material": row[5],
+            "created_at": row[6], "activated_at": row[7], "revoked_at": row[8],
+            "archived_at": row[8], "destroyed_at": row[9]
         }
     
     def get_active_version_for_logical_key_sync(self, logical_key_id: int) -> Optional[dict[str, Any]]:
-        sql = "SELECT kid, logical_key_id, version, state, algorithm, raw_material FROM key_versions WHERE logical_key_id = ? AND state = 'active' LIMIT 1;"
+        sql = "SELECT kid, logical_key_id, version, state, algorithm, raw_material, created_at, activated_at, revoked_at, archived_at, destroyed_at FROM key_versions WHERE logical_key_id = ? AND state = 'active' LIMIT 1;"
         row = self.pool.sync_backend.fetchone(sql, (logical_key_id,))
         if not row: return None
         return {
             "kid": row[0], "logical_key_id": row[1], "version": row[2], 
-            "state": row[3], "algorithm": row[4], "raw_material": row[5]
+            "state": row[3], "algorithm": row[4], "raw_material": row[5],
+            "created_at": row[6], "activated_at": row[7], "revoked_at": row[8],
+            "archived_at": row[8], "destroyed_at": row[9]
         }
+
+    async def list_keys_async(self, limit:int, cursor:Optional[int] = None) -> List[dict[str, Any]]:
+        base_sql = """
+            SELECT 
+                lk._id, lk.name, lk.purpose, lk.description, lk.exportable, lk.borrowable, lk.borrow_ttl_seconds, lk.created_at,
+                kv.version, kv.algorithm, kv.kid
+            FROM logical_keys lk
+            INNER JOIN key_versions kv ON lk._id = kv.logical_key_id
+            WHERE kv.state = 'active'
+        """
+        
+        if cursor is not None:
+            sql = f"{base_sql} AND lk._id > ? ORDER BY lk._id ASC LIMIT ?;"
+            params = (cursor, (limit+1))
+        else:
+            sql = f"{base_sql} ORDER BY lk._id ASC LIMIT ?;"
+            params = ((limit+1),)
+        
+        rows = await self.pool.async_backend.fetchall(sql, params)
+        return [
+            {
+                "_id": r[0], "name": r[1], "purpose": r[2], "description": r[3],
+                "exportable": int(r[4]), "borrowable": int(r[5]), "borrow_ttl_seconds": int(r[6]), "created_at": r[7],
+                "active_version": r[8], "algorithm": r[9], "kid": r[10]
+            }
+            for r in rows
+        ]
+    
+    def list_keys_sync(self, limit:int, cursor:Optional[int] = None) -> List[dict[str, Any]]:
+        base_sql = """
+            SELECT 
+                lk._id, lk.name, lk.purpose, lk.description, lk.exportable, lk.borrowable, lk.borrow_ttl_seconds, lk.created_at,
+                kv.version, kv.algorithm, kv.kid
+            FROM logical_keys lk
+            INNER JOIN key_versions kv ON lk._id = kv.logical_key_id
+            WHERE kv.state = 'active'
+        """
+        
+        if cursor is not None:
+            sql = f"{base_sql} AND lk._id > ? ORDER BY lk._id ASC LIMIT ?;"
+            params = (cursor, limit)
+        else:
+            sql = f"{base_sql} ORDER BY lk._id ASC LIMIT ?;"
+            params = (limit,)
+        
+        rows = self.pool.sync_backend.fetchall(sql, params)
+        return [
+            {
+                "_id": r[0], "name": r[1], "purpose": r[2], "description": r[3],
+                "exportable": int(r[4]), "borrowable": int(r[5]), "borrow_ttl_seconds": int(r[6]), "created_at": r[7],
+                "active_version": r[8], "algorithm": r[9], "kid": r[10]
+            }
+            for r in rows
+        ]
 
     async def update_key_state_async(self, kid: str, next_state: KeyVersionState, timestamp_field: Optional[str] = None) -> None:
         if timestamp_field:

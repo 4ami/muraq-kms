@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Optional, Generator
+from typing import Any, List, Optional, Generator
 from contextlib import contextmanager, asynccontextmanager
 
 from muraq_kms.storage.pool import StoragePool
@@ -224,3 +224,143 @@ class KeyManager:
                 ask=self.ask
             )
             yield lease
+    
+    async def get_key_version_async(self, name:str) -> Optional[KeyVersionModel]:
+        lk = await self.repo.get_logical_key_by_name_async(name=name)
+        
+        if not lk:
+            return None
+        
+        kv = await self.repo.get_active_version_for_logical_key_async(logical_key_id=lk['_id'])
+
+        if not kv:
+            return None
+        
+        return KeyVersionModel(**kv)
+    
+    def get_key_version_sync(self, name:str) -> Optional[KeyVersionModel]:
+        lk = self.repo.get_logical_key_by_name_sync(name=name)
+        
+        if not lk:
+            return None
+        
+        kv = self.repo.get_active_version_for_logical_key_sync(logical_key_id=lk['_id'])
+
+        if not kv:
+            return None
+        
+        return KeyVersionModel(**kv)
+    
+    async def list_keys_async(self, limit:int, cursor:Optional[int] = None) -> tuple[List[dict[str, Any]], Optional[int], bool]:
+        rows = await self.repo.list_keys_async(limit,cursor)
+        
+        has_next = len(rows) > limit
+
+        if has_next:
+            rows = rows[:limit]
+
+        next_ = rows[-1]["_id"] if rows else None
+        return rows, next_, has_next
+    
+    def list_keys_sync(self, limit:int, cursor:Optional[int] = None) -> tuple[List[dict[str, Any]], Optional[int], bool]:
+        rows = self.repo.list_keys_sync(limit,cursor)
+        
+        has_next = len(rows) > limit
+
+        if has_next:
+            rows = rows[:limit]
+        
+        next_ = rows[-1]["_id"] if rows else None
+        return rows, next_, has_next
+    
+    async def export_async(self, name:str, actor:str, version:Optional[int] = None) -> dict[str, Any]:
+        lk = await self.repo.get_logical_key_by_name_async(name=name)
+
+        if not lk or lk['exportable'] != 1:
+            await self.audit.log_event_async(
+                action="kms:export", actor=actor, status="DENIED",
+                details={"logical_key": name, "reason": "Key is not flagged as exportable"}, ask=self.ask
+            )
+            raise PolicyDenialError(f"Access Denied: Key reference '{name}' is not configured for export extraction.")
+        
+        kv = None
+        if version:
+            kv = await self.repo.get_key_version_by_kid_async(kid=f"{name}:{version}")
+        else:
+            kv = await self.repo.get_active_version_for_logical_key_async(logical_key_id=lk['_id'])
+        
+        if not kv:
+            raise KeyLifecycleError("Requested physical key version variant is unreachable.")
+        
+        wrapped_key = bytes.fromhex(kv['raw_material'])
+        raw_material = decrypt_envelope(wrapped_key, self.rmk)
+
+        wrapped_key = bytes.fromhex(kv['raw_material'])
+        raw_material = decrypt_envelope(wrapped_key, self.rmk)
+        
+        dependencies = await self.repo.get_dependency_count_async(kid=kv['kid'])
+
+        await self.audit.log_event_async(
+            action="kms:export", actor=actor, status="SUCCESS",
+            details={"kid": kv['kid']}, ask=self.ask
+        )
+        
+        data= {
+            "meta": {
+                "kid": kv['kid'], "purpose": lk['purpose'],
+                "algorithm": kv['algorithm'],
+                "dependencies_count": dependencies
+            },
+            "key_hex": raw_material.hex(), 
+        }
+
+        if lk['description']:
+            data['meta']['description'] = lk['description']
+        
+        return data
+    
+    def export_sync(self, name:str, actor:str, version:Optional[int] = None) -> dict[str, Any]:
+        lk = self.repo.get_logical_key_by_name_sync(name=name)
+
+        if not lk or lk['exportable'] != 1:
+            self.audit.log_event_sync(
+                action="kms:export", actor=actor, status="DENIED",
+                details={"logical_key": name, "reason": "Key is not flagged as exportable"}, ask=self.ask
+            )
+            raise PolicyDenialError(f"Access Denied: Key reference '{name}' is not configured for export extraction.")
+        
+        kv = None
+        if version:
+            kv = self.repo.get_key_version_by_kid_sync(kid=f"{name}:{version}")
+        else:
+            kv = self.repo.get_active_version_for_logical_key_sync(logical_key_id=lk['_id'])
+        
+        if not kv:
+            raise KeyLifecycleError("Requested physical key version variant is unreachable.")
+        
+        wrapped_key = bytes.fromhex(kv['raw_material'])
+        raw_material = decrypt_envelope(wrapped_key, self.rmk)
+
+        wrapped_key = bytes.fromhex(kv['raw_material'])
+        raw_material = decrypt_envelope(wrapped_key, self.rmk)
+
+        dependencies = self.repo.get_dependency_count_sync(kid=kv['kid'])
+
+        self.audit.log_event_sync(
+            action="kms:export", actor=actor, status="SUCCESS",
+            details={"kid": kv['kid']}, ask=self.ask
+        )
+        
+        data= {
+            "meta": {
+                "kid": kv['kid'], "purpose": lk['purpose'],
+                "algorithm": kv['algorithm'],
+                "dependencies_count": dependencies
+            },
+            "key_hex": raw_material.hex(), 
+        }
+
+        if lk['description']:
+            data['meta']['description'] = lk['description']
+        
+        return data

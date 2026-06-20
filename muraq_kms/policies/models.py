@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, model_validator
 from typing import Dict
 
 class KeyAccessPolicy(BaseModel):
@@ -15,16 +15,19 @@ class KeyAccessPolicy(BaseModel):
     description="Allows temporary scoped leasing of raw material.")
 
     borrow_ttl_seconds:int = Field(
-    30, 
+    0, 
     description="Enforced maximum lifespan of an ephemeral key lease.")
 
-    @field_validator("borrow_ttl_seconds")
-    @classmethod
-    def validate_ttl_bounds(cls, value:int) -> int:
-        if value <= 0 or value > 3600:
-            raise ValueError("Borrow TTL must remain bounded between 1 and 3600 seconds.")
-        return value
+    @model_validator(mode="after")
+    def validate_policy_interdependence(self) -> "KeyAccessPolicy":
+        if not self.borrow:
+            if self.borrow_ttl_seconds != 0:
+                raise ValueError("Borrow TTL must be 0 if borrow mode is disabled.")
+            return self
 
+        if self.borrow_ttl_seconds <= 0 or self.borrow_ttl_seconds > 3600:
+            raise ValueError("Borrow TTL must remain bounded between 1 and 3600 seconds when borrow is enabled.")         
+        return self
 
 class PolicyManifest(BaseModel):
     """
