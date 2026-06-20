@@ -130,10 +130,11 @@ Type {UI.COLORS.YELLOW}help{UI.COLORS.CYAN} or {UI.COLORS.YELLOW}?{UI.COLORS.CYA
         """
         Unified cryptographic key management utility.
         Usage:
-            key -create <name> <algorithm> --purpose <purpose> [--desc <text>] [--export] [--borrow] [--ttl <seconds>]
+            key -create <name> <algorithm> --purpose {encryption,signing,wrapping} [--desc <text>] [--export] [--borrow] [--ttl <seconds>]
             key -v -name <key_name>
             key -b <key_name> [<version>]
             key -ls [-l <limit>]
+            key -export <name> [-v <version>] [-f <format>] [-o <output>]
         """
         tokens = shlex.split(args.strip())
         if not tokens:
@@ -153,12 +154,15 @@ Type {UI.COLORS.YELLOW}help{UI.COLORS.CYAN} or {UI.COLORS.YELLOW}?{UI.COLORS.CYA
             
             if not parsed_args.borrow:
                 parsed_args.ttl = 0
-            elif parsed_args is None:
+            elif parsed_args.ttl is None:
                 parsed_args.ttl = 30
 
         dispatch = {
+            "-export": lambda: key_services.handle_export(self.key_manager, self._actor, parsed_args),
             "-create": lambda: key_services.handle_create(self.key_manager, self._actor, parsed_args),
+            "-v": lambda: key_services.handle_version(self.key_manager, parsed_args.name),
             "-b": lambda: key_services.handle_borrow(self.key_manager, self._actor, parsed_args.name, self.do_clear, parsed_args.version),
+            "-ls": lambda: key_services.handle_list(self.key_manager, parsed_args),
         }
 
         handler = dispatch.get(parsed_args.operation)
@@ -166,14 +170,6 @@ Type {UI.COLORS.YELLOW}help{UI.COLORS.CYAN} or {UI.COLORS.YELLOW}?{UI.COLORS.CYA
             handler()
         else:
             print(f"{UI.STATUS.FAIL} Unsupported operation: {parsed_args.operation}")
-
-    def do_keys(self, arg:str) -> None:
-        """
-        lists keys.
-        Usage: list, -ls
-        """
-        print(f"{UI.STATUS.INFO} Accessing decoupled active cryptographic keys...")
-
 
     def do_audit(self,  arg:str) -> None:
         """

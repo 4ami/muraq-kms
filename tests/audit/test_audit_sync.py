@@ -25,7 +25,7 @@ class TestAuditSecurityIntegrity:
             (t2, "kms:borrow", "root", "{}", "SUCCESS", h1, h2, 2)
         ]
 
-        assert manager._verfication_loop(rows, secret_key) is True
+        assert manager._verfication_loop(rows, secret_key)[0] is True
     
     def test_verification_loop_chain_link_break(self, secret_key):
         """Security: Intercepting and breaking the previous_hash backlink mapping must raise an AuditIntegrityError."""
@@ -60,4 +60,4 @@ class TestAuditSecurityIntegrity:
 
         with pytest.raises(AuditIntegrityError) as exc_info:
             manager._verfication_loop(rows, secret_key)
-        assert "Record tampering discovered at row ID 1" in str(exc_info.value)
+        assert "chain break detected at row ID 1" in str(exc_info.value)

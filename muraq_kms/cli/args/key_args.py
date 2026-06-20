@@ -25,6 +25,12 @@ def build_key_parser() -> argparse.ArgumentParser:
     p_list = subparsers.add_parser("-ls", add_help=False, exit_on_error=False)
     p_list.add_argument("-l", type=int, default=10, dest="limit")
 
+    p_export = subparsers.add_parser("-export", add_help=False, exit_on_error=False)
+    p_export.add_argument("name")
+    p_export.add_argument("-v", "--version", type=int, nargs="?", default=None)
+    p_export.add_argument("-f", "--format", type=str, default="json", help="Output format: json, env, txt, or env:CUSTOM_VAR_NAME")
+    p_export.add_argument("-o", "--output", type=str, default=None, help="Destination path to file or directory directory.")
+
     return parser
 
 class KeyCreateArgs(BaseModel):

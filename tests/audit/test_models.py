@@ -33,4 +33,4 @@ class TestAuditEntryValidation:
     def test_verify_chain_no_repository(self, secret_key):
         """Usability: Decoupled managers with no underlying storage pools should inherently pass verification."""
         manager = AuditManager(pool=None)
-        assert manager.verify_chain_integrity_sync(secret_key) is True
+        assert manager.verify_chain_integrity_sync(secret_key)[0] is True

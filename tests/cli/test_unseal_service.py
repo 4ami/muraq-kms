@@ -1,4 +1,3 @@
-import pytest
 from unittest.mock import patch, MagicMock
 from muraq_kms.cli.services.unseal_service import unseal_kms
 from muraq_kms.core.engine import EngineError
@@ -52,3 +51,27 @@ def test_unseal_intercepts_critical_exception_and_slams_door(
     captured = capsys.readouterr().out
     assert "CRITICAL" in captured
     assert "Manifest identity forgery detected" in captured
+
+@patch("muraq_kms.cli.shells.unsealed_shell.key_services.handle_export")
+def test_shell_key_export_routes_arguments_correctly(mock_handle_export, test_unsealed_shell):
+    test_unsealed_shell.do_key("-export my_crypto_key -f env:APP_SECRET -o /tmp/.env")
+
+    mock_handle_export.assert_called_once()
+    called_manager, called_actor, called_args = mock_handle_export.call_args[0]
+    
+    assert called_manager == test_unsealed_shell.key_manager
+    assert called_actor == "operator-dev"
+    assert called_args.name == "my_crypto_key"
+    assert called_args.format == "env:APP_SECRET"
+    assert called_args.output == "/tmp/.env"
+
+@patch("muraq_kms.cli.shells.unsealed_shell.key_services.handle_export")
+def test_shell_key_export_falls_back_to_defaults(mock_handle_export, test_unsealed_shell):
+    test_unsealed_shell.do_key("-export default_key")
+
+    mock_handle_export.assert_called_once()
+    _, _, called_args = mock_handle_export.call_args[0]
+    
+    assert called_args.name == "default_key"
+    assert called_args.format == "json"
+    assert called_args.output is None

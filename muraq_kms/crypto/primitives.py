@@ -58,3 +58,15 @@ def split_root_secret(raw_drs:bytes, deployment_salt:bytes) -> tuple[bytes, byte
     ask = audit_hkdf.derive(raw_drs)
 
     return rmk, ask
+
+def mask(value: str, visible_prefix:int = 4, mask_char: str = "*") -> str:
+    """
+    Transforms a secret string into a safe display format.
+    Example: 'my-super-secret-key-material' -> '****************erial'
+    """
+    if not value: return ""
+
+    if len(value) <= visible_prefix:
+        return mask_char * len(value)
+    
+    return f"{value[:visible_prefix]}{mask_char * (len(value) - visible_prefix)}"   
