@@ -50,6 +50,26 @@ class KeyRepository:
             "exportable": int(row[4]), "borrowable": int(row[5]), "borrow_ttl_seconds": int(row[6])
         }
     
+    async def get_logical_key_by_id_async(self, id:int) -> Optional[dict[str, Any]]:
+        sql = "SELECT _id, name, purpose, description, exportable, borrowable, borrow_ttl_seconds, created_at FROM logical_keys WHERE _id = ?;"
+        row = await self.pool.async_backend.fetchone(sql, (id,))
+        if not row: return None
+        return {
+            "_id": row[0], "name": row[1], "purpose": row[2],
+            "description": row[3], "exportable": int(row[4]), "borrowable": int(row[5]),
+            "borrow_ttl_seconds": int(row[6]), "created_at": row[7]
+        }
+    
+    def get_logical_key_by_id_sync(self, id:int) -> Optional[dict[str, Any]]:
+        sql = "SELECT _id, name, purpose, description, exportable, borrowable, borrow_ttl_seconds, created_at FROM logical_keys WHERE _id = ?;"
+        row = self.pool.sync_backend.fetchone(sql, (id,))
+        if not row: return None
+        return {
+            "_id": row[0], "name": row[1], "purpose": row[2],
+            "description": row[3], "exportable": int(row[4]), "borrowable": int(row[5]),
+            "borrow_ttl_seconds": int(row[6]), "created_at": row[7]
+        }
+    
     async def get_logical_key_by_name_async(self, name:str) -> Optional[dict[str, Any]]:
         sql = "SELECT _id, name, purpose, description, exportable, borrowable, borrow_ttl_seconds, created_at FROM logical_keys WHERE name = ?;"
         row = await self.pool.async_backend.fetchone(sql, (name,))

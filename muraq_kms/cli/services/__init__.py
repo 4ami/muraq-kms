@@ -4,6 +4,7 @@ from muraq_kms.cli.services.repair_service import RepairService
 from muraq_kms.cli.services.algorithms_service import list_algorithms
 from muraq_kms.cli.services.key_services import handle_create, handle_borrow, handle_list, handle_version, handle_export
 from muraq_kms.cli.services.audit_services import handle_audit_list, handle_audit_integrity
+from muraq_kms.cli.services.crypto_service import handle_encryption, handle_decryption
 
 __all__ = [
     "init_kms",
@@ -11,5 +12,6 @@ __all__ = [
     "RepairService",
     "list_algorithms",
     "handle_create", "handle_borrow", "handle_list", "handle_version", "handle_export",
-    "handle_audit_list", "handle_audit_integrity"
+    "handle_audit_list", "handle_audit_integrity",
+    "handle_encryption", "handle_decryption"
 ]

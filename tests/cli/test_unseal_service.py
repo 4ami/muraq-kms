@@ -2,8 +2,6 @@ from unittest.mock import patch, MagicMock
 from muraq_kms.cli.services.unseal_service import unseal_kms
 from muraq_kms.core.engine import EngineError
 
-
-
 @patch("muraq_kms.cli.services.unseal_service.getpass")
 @patch("muraq_kms.cli.services.unseal_service.get_deployment_id", return_value="test-id")
 @patch("muraq_kms.cli.services.unseal_service.ThrottlingEngine")

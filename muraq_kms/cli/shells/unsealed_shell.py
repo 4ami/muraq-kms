@@ -19,9 +19,12 @@ from muraq_kms.keys.manager import KeyManager
 
 from muraq_kms.core.actor import cli_actor
 
-from muraq_kms.cli.services import key_services, audit_services
+from muraq_kms.cli.services import key_services, audit_services, crypto_service
+
 from muraq_kms.cli.args.key_args import build_key_parser
 from muraq_kms.cli.args.audit_args import build_audit_parser
+from muraq_kms.cli.args.encryption_args import build_encrypt_parser
+from muraq_kms.cli.args.decryption_args import build_decrypt_parser
 
 
 class MKMSUnsealedShell(BaseKMSShell):
@@ -38,6 +41,8 @@ Type {UI.COLORS.YELLOW}help{UI.COLORS.CYAN} or {UI.COLORS.YELLOW}?{UI.COLORS.CYA
 
     _key_parser = build_key_parser()
     _audit_parser = build_audit_parser()
+    _encryption_parser = build_encrypt_parser()
+    _decryption_parser = build_decrypt_parser()
 
     def __init__(self, config: StorageConfig, engine: CoreEngine) -> None:
         super().__init__(config, engine)
@@ -170,6 +175,48 @@ Type {UI.COLORS.YELLOW}help{UI.COLORS.CYAN} or {UI.COLORS.YELLOW}?{UI.COLORS.CYA
             handler()
         else:
             print(f"{UI.STATUS.FAIL} Unsupported operation: {parsed_args.operation}")
+
+    def do_encrypt(self, arg:str) -> None:
+        """
+        Encrypt an inline string message or stream a large file from disk.
+ 
+        Usage:
+            encrypt -k <key_name> -m "message" [--format base64|hex] [-o <path>]
+            encrypt -k <key_name> -f <file_path> [--format raw|base64|hex] [-o <path>]
+        """
+        tokens = shlex.split(arg.strip())
+        if not tokens:
+            print(f"{UI.STATUS.FAIL} Operational error: Key identifier name argument is missing.")
+            return
+        
+        try:
+            parsed_args = self._encryption_parser.parse_args(tokens)
+        except (ArgumentError, TypeError) as parse_err:
+            print(f"{UI.STATUS.FAIL} Syntax Error: {str(parse_err)}")
+            return
+        
+        crypto_service.handle_encryption(self.key_manager, self.engine.get_rmk(), parsed_args)
+    
+    def do_decrypt(self, arg:str) -> None:
+        """
+        Decrypt a serialized ciphertext message string or stream an MKMS file from disk.
+ 
+        Usage:
+            decrypt -k <key_name> -m <ciphertext> [--format base64|hex] [-o <path>]
+            decrypt -k <key_name> -f <file_path> [-o <path>]
+        """
+        tokens = shlex.split(arg.strip())
+        if not tokens:
+            print(f"{UI.STATUS.FAIL} Operational error: Key identifier name argument is missing.")
+            return
+        
+        try:
+            parsed_args = self._decryption_parser.parse_args(tokens)
+        except (ArgumentError, TypeError) as parse_err:
+            print(f"{UI.STATUS.FAIL} Syntax Error: {str(parse_err)}")
+            return
+        
+        crypto_service.handle_decryption(self.key_manager, self.engine.get_rmk(), parsed_args)
 
     def do_audit(self,  arg:str) -> None:
         """
