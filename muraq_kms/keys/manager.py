@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Any, List, Optional, Generator
+from typing import Any, List, Optional, Generator, AsyncGenerator
 from contextlib import contextmanager, asynccontextmanager
 
 from muraq_kms.storage.pool import StoragePool
@@ -151,7 +151,7 @@ class KeyManager:
             raise KeyLifecycleError(f"Failed to create key '{name}': {str(e)}")
     
     @asynccontextmanager
-    async def borrow_key_async(self, actor:str, name:str, version:Optional[int] = None) -> Generator[EphemeralKeyLease, None, None]:
+    async def borrow_key_async(self, actor:str, name:str, version:Optional[int] = None) -> AsyncGenerator[EphemeralKeyLease, None]:
         """
         FR-14 & FR-21 Controlled Ephemeral Borrow access pattern. 
         Enforces runtime-scoped contexts, zeroization window assertions, and audit logging.
@@ -364,3 +364,19 @@ class KeyManager:
             data['meta']['description'] = lk['description']
         
         return data
+    
+    async def get_logical_key_async(self, logical_key_id:int) -> dict[str, Any]:
+        lk = await self.repo.get_logical_key_by_id_async(id=logical_key_id)
+
+        if not lk:
+            raise KeyLifecycleError("Requested logical key is unreachable.")
+        
+        return lk
+
+    def get_logical_key_sync(self, logical_key_id:int) -> dict[str, Any]:
+        lk = self.repo.get_logical_key_by_id_sync(id=logical_key_id)
+
+        if not lk:
+            raise KeyLifecycleError("Requested logical key is unreachable.")
+        
+        return lk
