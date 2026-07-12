@@ -380,3 +380,9 @@ class KeyManager:
             raise KeyLifecycleError("Requested logical key is unreachable.")
         
         return lk
+    
+    async def add_dependency_async(self, ciphertext_id: str, ref_kid: str, status: str) -> dict[str, Any]:
+        return await self.repo.add_dependency_async(ciphertext_id, ref_kid, status)
+    
+    def add_dependency_sync(self, ciphertext_id: str, ref_kid: str, status: str) -> dict[str, Any]:
+        return self.repo.add_dependency_sync(ciphertext_id, ref_kid, status)

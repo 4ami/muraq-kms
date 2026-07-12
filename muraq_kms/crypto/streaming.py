@@ -159,6 +159,19 @@ def _parse_header(
 
 # ── public streaming API ─────────────────────────────────────────────────────
 
+def generate_file_cid(path:Path) -> str:
+    """
+    Generate a unique ciphertext dependency identifier by parsing and 
+    hashing the file's exact structural header bytes.
+    """
+    with open(path, 'rb') as src:
+        st = src.tell()
+        _parse_header(src)
+        end = src.tell()
+        src.seek(st)
+        raw = src.read(end - st)
+    return f"FILE_CID:{hashlib.sha256(raw).hexdigest()}"
+
 def encrypt_file_stream(
     src_path: Path,
     dst_path: Path,

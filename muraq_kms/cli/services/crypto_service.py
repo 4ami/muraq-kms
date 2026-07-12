@@ -16,10 +16,13 @@ from pathlib import Path
 
 from base64 import b64encode, b64decode
 
+from hashlib import sha256
+
 from muraq_kms.cli.ui.ui import UI
 from muraq_kms.cli.ui.widgets import ProgressIndicator, Frame
 
 from muraq_kms.crypto.primitives import decrypt_envelope
+from muraq_kms.crypto.streaming import generate_file_cid
 
 from muraq_kms.crypto.registry import MuraqKMSAlgorithms, AlgorithmSpec
 
@@ -32,7 +35,7 @@ def _resolve_key_material(
     key_manager: KeyManager,
     rmk: bytes,
     key_name: str,
-) -> tuple[bytes, str] | tuple[None, None]:
+) -> tuple[bytes, str, str] | tuple[None, None, None]:
     """
     Look up the active key version by name, unwrap the raw material.
  
@@ -44,18 +47,18 @@ def _resolve_key_material(
             f"{UI.STATUS.FAIL} Key Reference Error: "
             f"No active cryptographic key found named '{key_name}'."
         )
-        return None, None
+        return None, None, None
     
     lk = key_manager.get_logical_key_sync(logical_key_id=kv.logical_key_id)
     if not lk:
         print(f"{UI.STATUS.FAIL} Key Reference Error: No active cryptographic key variant found named '{key_name}'.")
-        return None, None
+        return None, None, None
     
     can_encrypt:bool = lk['purpose'] == "encryption"
 
     if not can_encrypt:
         print(f"{UI.STATUS.FAIL} Key Reference Error: Key '{key_name}' can not perform 'encryption'.")
-        return None, None
+        return None, None, None
  
     try:
         raw_key = decrypt_envelope(bytes.fromhex(kv.raw_material), rmk)
@@ -64,9 +67,9 @@ def _resolve_key_material(
             f"{UI.STATUS.FAIL} Key Unwrap Failure: "
             f"Could not decrypt key material — {e}"
         )
-        return None, None
+        return None, None, None
  
-    return raw_key, kv.algorithm
+    return raw_key, kv.algorithm, kv.kid
 
 # ── encryption ────────────────────────────────────────────────────────────────
 
@@ -78,7 +81,7 @@ def handle_encryption(key_manager:KeyManager, rmk:bytes, args:Namespace):
                        (or write to -o file if specified)
     -f / --file     → streaming stream_encrypt_hook, always writes to disk
     """
-    raw_key, algo_name = _resolve_key_material(key_manager, rmk, args.key)
+    raw_key, algo_name, kid = _resolve_key_material(key_manager, rmk, args.key)
     if raw_key is None:
         return
 
@@ -91,11 +94,11 @@ def handle_encryption(key_manager:KeyManager, rmk:bytes, args:Namespace):
     is_file = bool(args.file)
 
     if is_file:
-        _encrypt_file(spec, raw_key, algo_name, args)
+        _encrypt_file(spec, key_manager, raw_key, algo_name, kid, args)
     else:
-        _encrypt_message(spec, raw_key, args)
+        _encrypt_message(spec, key_manager, raw_key, kid, args)
 
-def _encrypt_message(spec:AlgorithmSpec, raw_key: bytes, args: Namespace) -> None:
+def _encrypt_message(spec:AlgorithmSpec, key_manager:KeyManager, raw_key: bytes, kid:str, args: Namespace) -> None:
     """In-memory path: -m / --message"""
     msg_bytes = args.message.encode("utf-8")
     out_format = args.format or "base64"
@@ -107,7 +110,9 @@ def _encrypt_message(spec:AlgorithmSpec, raw_key: bytes, args: Namespace) -> Non
     except Exception as e:
         print(f"{UI.STATUS.FAIL} Cryptographic Engine Failure: {e}")
         return
- 
+    
+    cid = args.cid or f"MSG_ID:{sha256(ciphertext).hexdigest()}"
+    key_manager.add_dependency_sync(cid, kid, 'coupled')
     # if out_format == "base64":
     #     encoded = b64encode(ciphertext).decode("utf-8")
     # elif out_format == "hex":
@@ -165,14 +170,13 @@ def _encrypt_message(spec:AlgorithmSpec, raw_key: bytes, args: Namespace) -> Non
             "stdout. Use '--format base64', '--format hex', or specify '-o <path>'."
         )
         return
- 
     print(f"\n{UI.STATUS.SUCCESS} Encryption complete [{spec.name}]:")
     with Frame("CIPHERTEXT OUTPUT", color=UI.COLORS.CYAN) as frame:
         for i in range(0, len(encoded), 80):
             frame.line(encoded[i : i + 80])
     print()
 
-def _encrypt_file(spec:AlgorithmSpec, raw_key: bytes, algo_name: str, args: Namespace) -> None:
+def _encrypt_file(spec:AlgorithmSpec, key_manager:KeyManager, raw_key: bytes, algo_name: str, kid:str, args: Namespace) -> None:
     """Streaming path: -f / --file"""
     src_path = Path(args.file)
  
@@ -216,7 +220,10 @@ def _encrypt_file(spec:AlgorithmSpec, raw_key: bytes, algo_name: str, args: Name
     except Exception as e:
         print(f"\n{UI.STATUS.FAIL} Streaming Encryption Failure: {e}")
         return
- 
+    
+    cid = generate_file_cid(dst_path)
+    key_manager.add_dependency_sync(cid, kid, 'copuld')
+
     enc_size_mb = dst_path.stat().st_size / (1024 * 1024)
     print(
         f"{UI.STATUS.SUCCESS} File encrypted [{spec.name}]: "
