@@ -115,7 +115,7 @@ class KeyRepository:
             "created_at": row[6], "activated_at": row[7]
         }
     
-    def save_key_version_sync(self, model:KeyVersionModel) -> None:
+    def save_key_version_sync(self, model:KeyVersionModel) -> dict[str, Any]:
         sql = """
         INSERT INTO key_versions (kid, logical_key_id, version, state, algorithm, raw_material, created_at, activated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -272,14 +272,54 @@ class KeyRepository:
             sql = "UPDATE key_versions SET state = ? WHERE kid = ?;"
             self.pool.sync_backend.execute(sql, (next_state.value, kid))
     
-    async def add_dependency_async(self, ciphertext_id: str, ref_kid: str, status: str) -> None:
-        sql = "INSERT INTO key_dependencies (ciphertext_id, ref_kid, status, registered_at) VALUES (?, ?, ?, ?);"
-        await self.pool.async_backend.execute(sql, (ciphertext_id, ref_kid, status, datetime.now(tz=timezone.utc).timestamp()))
-    
-    def add_dependency_sync(self, ciphertext_id: str, ref_kid: str, status: str) -> None:
-        sql = "INSERT INTO key_dependencies (ciphertext_id, ref_kid, status, registered_at) VALUES (?, ?, ?, ?);"
-        self.pool.sync_backend.execute(sql, (ciphertext_id, ref_kid, status, datetime.now(tz=timezone.utc).timestamp()))
+    async def add_dependency_async(self, ciphertext_id: str, ref_kid: str, status: str) -> dict[str, Any]:
+        sql = """
+        INSERT INTO key_dependencies (ciphertext_id, ref_kid, status, registered_at)
+        VALUES (?, ?, ?, ?)
+        RETURNING _id, ciphertext_id, ref_kid, status, registered_at;
+        """
+        row = None
+        async with self.pool.async_backend.transaction(domain='keys') as conn:
+            cursor = conn.execute(sql, (
+                ciphertext_id, 
+                ref_kid, 
+                status,
+                datetime.now(tz=timezone.utc).timestamp()
+            ))
+            row = cursor.fetchone()
+        
+        if not row:
+            raise RuntimeError(f"Failed to register dependency for key '{ref_kid}'.")
 
+        return {
+            "_id": row[0], "ciphertext_id": row[1], "ref_kid": row[2],
+            "status": row[3], "registered_at": row[4]
+        }
+    
+    def add_dependency_sync(self, ciphertext_id: str, ref_kid: str, status: str) -> dict[str, Any]:
+        sql = """
+        INSERT INTO key_dependencies (ciphertext_id, ref_kid, status, registered_at)
+        VALUES (?, ?, ?, ?)
+        RETURNING _id, ciphertext_id, ref_kid, status, registered_at;
+        """
+        row = None
+        with self.pool.sync_backend.transaction(domain='keys') as conn:
+            cursor = conn.execute(sql, (
+                ciphertext_id, 
+                ref_kid, 
+                status,
+                datetime.now(tz=timezone.utc).timestamp()
+            ))
+            row = cursor.fetchone()
+        
+        if not row:
+            raise RuntimeError(f"Failed to register dependency for key '{ref_kid}'.")
+
+        return {
+            "_id": row[0], "ciphertext_id": row[1], "ref_kid": row[2],
+            "status": row[3], "registered_at": row[4]
+        }
+    
     async def get_dependency_count_async(self, kid: str) -> int:
         sql = "SELECT COUNT(*) FROM key_dependencies WHERE ref_kid = ? AND status IN ('coupled', 'migrating');"
         row = await self.pool.async_backend.fetchone(sql, (kid,))
