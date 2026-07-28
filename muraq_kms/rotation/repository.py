@@ -15,7 +15,7 @@ class RotationRepository:
             SELECT r._id, r.logical_key_id, r.interval_days, l.name
             FROM rotation_jobs r
             JOIN logical_keys l ON r.logical_key_id = l._id
-            WHERE r.next_run <= CURRENT_TIMESTAMP;
+            WHERE r.next_run <= unixepoch('now');
         """
         rows = await self.pool.async_backend.fetchall(query, ())
         if not rows:
@@ -39,7 +39,7 @@ class RotationRepository:
             SELECT r._id, r.logical_key_id, r.interval_days, l.name
             FROM rotation_jobs r
             JOIN logical_keys l ON r.logical_key_id = l._id
-            WHERE r.next_run <= CURRENT_TIMESTAMP;
+            WHERE r.next_run <= unixepoch('now');
         """
         rows = self.pool.sync_backend.fetchall(query, ())
         if not rows:
