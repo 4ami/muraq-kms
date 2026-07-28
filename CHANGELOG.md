@@ -2,6 +2,24 @@
 
 
 
+## v0.1.1 (2026-07-28)
+
+### Fix
+
+* fix(ci): update release workflow and isolate PyInstaller builds
+
+- Fix release step tag outputs using steps.release.outputs.tag_name
+- Configure explicit workpath for PyInstaller to resolve file lock errors
+- Update SQLite rotation query logic to avoid timestamp type comparison bugs
+- Clean up release workflow dependencies ([`c362374`](https://github.com/4ami/muraq-kms/commit/c36237474d18448a678f4047cdda1f611535b1b0))
+
+### Unknown
+
+* Merge pull request #16 from 4ami/development
+
+fix(ci): update release workflow and isolate PyInstaller builds ([`755fdac`](https://github.com/4ami/muraq-kms/commit/755fdace778f71c1a4175ce435cf3621a002c9ce))
+
+
 ## v0.1.0 (2026-07-28)
 
 ### Build
