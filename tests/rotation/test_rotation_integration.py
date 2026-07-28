@@ -154,7 +154,7 @@ async def test_rotation_scheduler_background_task_integration(kms_integration_en
     scheduler = RotationScheduler(manager=rotation_mgr)
     scheduler.start(interval_seconds=1)
 
-    await asyncio.sleep(1)
+    await asyncio.sleep(0.5)
     await scheduler.stop()
 
     v2_active = await key_mgr.get_key_version_async(key_name)

@@ -18,6 +18,7 @@ classifiers = [
 dependencies = [
     "argon2-cffi>=25.1.0",
     "cryptography>=48.0.0",
+    "pydantic>=2.13.4",
     "pynacl>=1.6.2",
     "typer>=0.26.7",
 ]
@@ -27,6 +28,9 @@ test = [
     "pytest>=8.4.1",
     "pytest-asyncio>=1.4.0",
 ]
+build = [
+    "pyinstaller>=6.21.0",
+]
 
 [tool.setuptools.dynamic]
 version = { attr = "muraq_kms.__version__" }
@@ -35,6 +39,9 @@ version = { attr = "muraq_kms.__version__" }
 #muraq-kms = "muraq_kms.cli.main:start_interactive_shell"
 
 [tool.semantic_release]
-version_toml = ["pyproject.toml:tool.setuptools.dynamic.version.attr"]
-branch = "master"
-upload_to_release = true
+version_variables = ["muraq_kms/_version.py:__version__"]
+build_command = "pip install build && python -m build"
+
+[tool.semantic_release.branches.main]
+match = "(main|master)"
+prerelease = false
