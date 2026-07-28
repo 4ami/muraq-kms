@@ -45,3 +45,7 @@ build_command = "pip install build && python -m build"
 [tool.semantic_release.branches.main]
 match = "(main|master)"
 prerelease = false
+
+[tool.semantic_release.publish]
+upload_to_vcs_release = true
+assets = ["dist/muraq-kms"]

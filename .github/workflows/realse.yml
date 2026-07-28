@@ -24,7 +24,8 @@ jobs:
 
       - name: Install Release Dependencies
         run: |
-          pip install python-semantic-release pyinstaller
+          pip install --upgrade pip
+          pip install .[test] pyinstaller python-semantic-release
 
       - name: Python Semantic Release
         id: release
@@ -35,13 +36,19 @@ jobs:
       - name: Build Standalone Executable
         if: steps.release.outputs.released == 'true'
         run: |
-          pyinstaller --onefile --name muraq-kms muraq_kms/cli/main.py
+          mkdir -p /tmp/pyinstaller_build
+          pyinstaller --onefile \
+            --name muraq-kms \
+            --clean \
+            --workpath /tmp/pyinstaller_build/build \
+            --distpath dist \
+            muraq_kms/cli/main.py
 
       - name: Upload Binary to GitHub Release
         if: steps.release.outputs.released == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.release.outputs.tag }}
+          tag_name: ${{ steps.release.outputs.tag_name }}
           files: dist/muraq-kms
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
