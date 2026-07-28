@@ -13,12 +13,13 @@ from muraq_kms.crypto.primitives import mask
 from muraq_kms.policies.models import KeyAccessPolicy
 
 from muraq_kms.keys.manager import KeyManager
+from muraq_kms.rotation.manager import RotationManager
 
 from muraq_kms.cli.args.key_args import KeyCreateArgs
 
 from muraq_kms.crypto.registry import MuraqKMSAlgorithms
 
-def handle_create(key_manager:KeyManager, actor:str, parsed_args:Namespace) -> None:
+def handle_create(rotation_manager:RotationManager, key_manager:KeyManager, actor:str, parsed_args:Namespace) -> None:
     args_dict = vars(parsed_args).copy()
     args_dict.pop("operation", None)
 
@@ -32,6 +33,7 @@ def handle_create(key_manager:KeyManager, actor:str, parsed_args:Namespace) -> N
 
     args_dict['actor'] = actor
     args_dict['key_name'] = args_dict.pop('name')
+    rotation_days = args_dict.pop('rotation_days', 90)
     try:
         args = KeyCreateArgs(**args_dict)
     except Exception:
@@ -51,19 +53,23 @@ def handle_create(key_manager:KeyManager, actor:str, parsed_args:Namespace) -> N
     try:
         with Spinner(f"Generating cryptographically sound {args.algorithm_name} material primitives for '{args.key_name}'..."):
                 model = key_manager.create_key_sync(
-                actor=args.actor, 
-                name=args.key_name, 
-                purpose=args.purpose, 
-                algorithm=args.algorithm_name,
-                description=args.description,
-                policy=policy
-            )
+                    actor=args.actor, 
+                    name=args.key_name, 
+                    purpose=args.purpose, 
+                    algorithm=args.algorithm_name,
+                    description=args.description,
+                    policy=policy
+                )
+
+                rotation_manager.register_rotation_job_sync(model.logical_key_id, rotation_days)
+
         print(f"{UI.STATUS.SUCCESS} Key version tracking container '{model.kid}' successfully generated.")
 
         print(f"   {UI.ANSIESCAPE.DIM}├─ Algorithm      : {args.algorithm_name} ({args.algorithm_type.upper()})")
         print(f"   ├─ Export Allowed : {policy.export}")
         print(f"   ├─ Borrow Scoped  : {policy.borrow}")
-        print(f"   └─ Lease Window   : {policy.borrow_ttl_seconds}s{UI.ANSIESCAPE.RESET}\n")
+        print(f"   ├─ Lease Window   : {policy.borrow_ttl_seconds}s\n")
+        print(f"   └─ Rotation Rule  : Every {rotation_days} days{UI.ANSIESCAPE.RESET}\n")
     except Exception as e:
         print(f"{UI.STATUS.FAIL} Execution failed: {str(e)}")
 

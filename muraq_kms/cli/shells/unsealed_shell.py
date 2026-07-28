@@ -16,6 +16,7 @@ from muraq_kms.core.engine import CoreEngine
 
 from muraq_kms.audit.manager import AuditManager
 from muraq_kms.keys.manager import KeyManager
+from muraq_kms.rotation.manager import RotationManager
 
 from muraq_kms.core.actor import cli_actor
 
@@ -56,6 +57,13 @@ Type {UI.COLORS.YELLOW}help{UI.COLORS.CYAN} or {UI.COLORS.YELLOW}?{UI.COLORS.CYA
             audit_manager= self.audit_manager,
             ask=self.engine.get_ask(),
             rmk=self.engine.get_rmk()
+        )
+        self.rotation_manager = RotationManager(
+            pool=pool,
+            ask=self.engine.get_ask(),
+            rmk=self.engine.get_rmk(),
+            audit_manager=self.audit_manager,
+            key_repo=self.key_manager.repo
         )
 
         self._actor = cli_actor()
@@ -164,7 +172,7 @@ Type {UI.COLORS.YELLOW}help{UI.COLORS.CYAN} or {UI.COLORS.YELLOW}?{UI.COLORS.CYA
 
         dispatch = {
             "-export": lambda: key_services.handle_export(self.key_manager, self._actor, parsed_args),
-            "-create": lambda: key_services.handle_create(self.key_manager, self._actor, parsed_args),
+            "-create": lambda: key_services.handle_create(self.rotation_manager, self.key_manager, self._actor, parsed_args),
             "-v": lambda: key_services.handle_version(self.key_manager, parsed_args.name),
             "-b": lambda: key_services.handle_borrow(self.key_manager, self._actor, parsed_args.name, self.do_clear, parsed_args.version),
             "-ls": lambda: key_services.handle_list(self.key_manager, parsed_args),

@@ -66,3 +66,29 @@ def key_manager_instance(monkeypatch, mock_repo, mock_audit, valid_key_wrapping_
         rmk=valid_key_wrapping_key
     )
     return manager
+
+@pytest.fixture
+def mock_rotation_repo():
+    repo = MagicMock()
+    repo.get_overdue_jobs_async = AsyncMock(return_value=[])
+    repo.get_overdue_jobs_sync = MagicMock(return_value=[])
+    repo.update_job_schedule_async = AsyncMock()
+    repo.update_job_schedule_sync = MagicMock()
+    repo.register_rotation_job_async = AsyncMock(return_value={"interval_days": 90, "next_run": 100000.0})
+    repo.register_rotation_job_sync = MagicMock(return_value={"interval_days": 90, "next_run": 100000.0})
+    return repo
+
+@pytest.fixture
+def rotation_manager_instance(monkeypatch, mock_repo, mock_rotation_repo, mock_audit, valid_key_wrapping_key):
+    from muraq_kms.rotation.manager import RotationManager
+    
+    monkeypatch.setattr("muraq_kms.rotation.manager.RotationRepository", lambda pool: mock_rotation_repo)
+    
+    manager = RotationManager(
+        rmk=valid_key_wrapping_key,
+        ask=b"audit_signing_key_32_bytes_length",
+        audit_manager=mock_audit,
+        pool=MagicMock(),
+        key_repo=mock_repo
+    )
+    return manager
