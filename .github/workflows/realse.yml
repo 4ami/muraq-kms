@@ -1,0 +1,47 @@
+name: Release & Binary Build
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Release Dependencies
+        run: |
+          pip install python-semantic-release pyinstaller
+
+      - name: Python Semantic Release
+        id: release
+        uses: python-semantic-release/python-semantic-release@v9.8.1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Standalone Executable
+        if: steps.release.outputs.released == 'true'
+        run: |
+          pyinstaller --onefile --name muraq-kms muraq_kms/cli/main.py
+
+      - name: Upload Binary to GitHub Release
+        if: steps.release.outputs.released == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release.outputs.tag }}
+          files: dist/muraq-kms
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
