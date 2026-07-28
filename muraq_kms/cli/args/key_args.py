@@ -14,6 +14,7 @@ def build_key_parser() -> argparse.ArgumentParser:
     p_create.add_argument("--export", action="store_true")
     p_create.add_argument("--borrow", action="store_true")
     p_create.add_argument("--ttl", type=int, default=None)
+    p_create.add_argument("--rotation-days", type=int, default=90, help="Rotation interval in days (default: 90)")
 
     p_view = subparsers.add_parser("-v", add_help=False, exit_on_error=False)
     p_view.add_argument("-name", required=True)

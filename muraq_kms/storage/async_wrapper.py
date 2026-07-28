@@ -13,15 +13,20 @@ class AsyncSQLiteStorage:
         return self._storage
     
     @asynccontextmanager
-    async def transaction(self, domain:_DOMAIN_LITERAL) -> AsyncIterator[SQLiteStorage]:
+    async def transaction(self, domain:_DOMAIN_LITERAL) -> AsyncIterator[sqlite3.Connection]:
         conn = await asyncio.to_thread(self._storage.connection, domain)
 
-        await asyncio.to_thread(conn.execute, "BEGIN")
+        already_in_tx = conn.in_transaction
+
+        if not already_in_tx:
+            await asyncio.to_thread(conn.execute, "BEGIN")
         try:
-            yield self.storage
-            await asyncio.to_thread(conn.commit)
+            yield conn
+            if not already_in_tx:
+                await asyncio.to_thread(conn.commit)
         except Exception:
-            await asyncio.to_thread(conn.rollback)
+            if not already_in_tx:
+                await asyncio.to_thread(conn.rollback)
             raise
 
     async def fetchone(self, sql: str, params: tuple[Any, ...] = (), domain:_DOMAIN_LITERAL = "keys") -> tuple[Any, ...] | None:

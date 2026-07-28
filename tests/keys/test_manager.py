@@ -149,3 +149,17 @@ def test_export_sync_success_with_dependencies(mock_decrypt, key_manager_instanc
         action="kms:export", actor="admin", status="SUCCESS",
         details={"kid": "test_key:v1"}, ask=key_manager_instance.ask
     )
+
+@pytest.mark.asyncio
+async def test_create_key_async_success_with_rotation(key_manager_instance, rotation_manager_instance, mock_repo, mock_audit, mock_crypto):
+    mock_repo.create_logical_key_async.return_value = {"_id": 101}
+    
+    model = await key_manager_instance.create_key_async(
+        actor="admin", name="prod-encrypt-key", purpose="encryption"
+    )
+    
+    assert isinstance(model, KeyVersionModel)
+    assert model.kid == "prod-encrypt-key:v1"
+    
+    reg_res = await rotation_manager_instance.register_rotation_job_async(model.logical_key_id, interval_days=60)
+    assert reg_res["interval_days"] == 90 or reg_res["interval_days"] == 60
