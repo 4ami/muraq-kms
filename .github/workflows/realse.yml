@@ -36,13 +36,15 @@ jobs:
       - name: Build Standalone Executable
         if: steps.release.outputs.released == 'true'
         run: |
+          rm -rf dist build *.spec /tmp/pyinstaller_build
           mkdir -p /tmp/pyinstaller_build
           pyinstaller --onefile \
-            --name muraq-kms \
+            --name muraq-kms-app \
             --clean \
             --workpath /tmp/pyinstaller_build/build \
             --distpath dist \
             muraq_kms/cli/main.py
+          mv dist/muraq-kms-app dist/muraq-kms
 
       - name: Upload Binary to GitHub Release
         if: steps.release.outputs.released == 'true'
