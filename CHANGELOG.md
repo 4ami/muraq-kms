@@ -2,6 +2,23 @@
 
 
 
+## v0.1.2 (2026-07-28)
+
+### Fix
+
+* fix(ci): fix PyInstaller directory collision and release tag output
+
+- Change PyInstaller artifact name to prevent workspace directory collisions
+- Add pre-build cleanup step for dist, build, and spec files
+- Fix release workflow tag output variable to ensure binary attachment ([`7722311`](https://github.com/4ami/muraq-kms/commit/77223111f284a0cf61f10eac504f4c8d13d6df88))
+
+### Unknown
+
+* Merge pull request #17 from 4ami/development
+
+fix(ci): fix PyInstaller directory collision and release tag output ([`f7cea58`](https://github.com/4ami/muraq-kms/commit/f7cea5815b4a1eb484d4c94a00d21a9bddffd5fa))
+
+
 ## v0.1.1 (2026-07-28)
 
 ### Fix
